@@ -29,9 +29,15 @@ if case is None:
 
 show_members(
     "CASE",
-    case,
-    ("basis", "flow", "solver", "save"),
+    case
 )
+print("\n===== CASE direct probe =====")
+for name in ["Name", "BasisManager", "Flowsheet", "Solver"]:
+    try:
+        value = getattr(case, name)
+        print(f"case.{name} -> OK, type: {type(value).__name__}")
+    except Exception as e:
+        print(f"case.{name} -> FAIL: {e}")
 
 basis = case.BasisManager
 show_members(
