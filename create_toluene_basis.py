@@ -129,23 +129,89 @@ if fluid_package.ComponentList.name != component_list.name:
 if fluid_package.PropertyPackageName != "Peng-Robinson":
     raise RuntimeError("物性包没有正确设置为 Peng-Robinson")
 
-# 5. 创建甲苯进料物流（先访问 Flowsheet 进入模拟环境，再设置 Solver）
-flowsheet = case.Flowsheet
+# 4.5 关键一步：离开 Basis 环境，进入 Simulation 环境
+# 案例还停在 Properties 页签时，物流参数写入会被 HYSYS 拒绝访问（0x80070005）
 solver = case.Solver
-solver.CanSolve = False
+
+leave = getattr(basis, "LeaveBasisEnvironment", None)
+if leave is not None:
+    try:
+        leave()
+        print("Left Basis environment -> Simulation environment")
+    except Exception as exc:
+        print("LeaveBasisEnvironment warning:", exc)
+else:
+    print("LeaveBasisEnvironment not available")
+
+# 5. 创建甲苯进料物流
+flowsheet = case.Flowsheet
+
+print("Creating material stream...")
 feed = flowsheet.MaterialStreams.Add("Feed")
+print("Material stream created:", feed.name)
 
-feed.Temperature.SetValue(380.0, "C")
-feed.Pressure.SetValue(25.0, "bar")
-feed.MassFlow.SetValue(10000.0, "kg/h")
+try:
+    feed.Temperature.SetValue(380.0, "C")
+    feed.Pressure.SetValue(25.0, "bar")
+    feed.MassFlow.SetValue(10000.0, "kg/h")
+    # 组分顺序与 COMPONENT_NAMES 一致：纯甲苯进料
+    set_molar_composition(feed, (1.0, 0.0, 0.0, 0.0, 0.0))
+    print("Feed parameters written OK")
+except Exception as exc:
+    # 兜底：若仍被锁定，保存后关闭再重新打开，重开后直接进入 Simulation 模式
+    print("Feed parameter write failed:", exc)
+    print("Fallback: save, close and reopen the case...")
 
-# 组分顺序与 COMPONENT_NAMES 一致：纯甲苯进料
-set_molar_composition(
-    feed,
-    (1.0, 0.0, 0.0, 0.0, 0.0),
-)
+    fallback_path = r"C:\Users\Administrator\Desktop\procagent\project\simple\autosave\toluene_basis_verified.hsc"
 
-solver.CanSolve = True
+    case.SaveAs(fallback_path)
+    print("Case saved (basis only):", fallback_path)
+
+    case.Close()
+    case = app.SimulationCases.Open(fallback_path)
+    basis = case.BasisManager
+    flowsheet = case.Flowsheet
+    solver = case.Solver
+
+    feed = flowsheet.MaterialStreams.Add("Feed")
+    feed.Temperature.SetValue(380.0, "C")
+    feed.Pressure.SetValue(25.0, "bar")
+    feed.MassFlow.SetValue(10000.0, "kg/h")
+    set_molar_composition(feed, (1.0, 0.0, 0.0, 0.0, 0.0))
+    print("Feed parameters written OK after reopen")
+
+# 5. 创建甲苯进料物流（先访问 Flowsheet 进入模拟环境，再设置 Solver）
+# flowsheet = case.Flowsheet
+# solver = case.Solver
+
+# try:
+#     print("Solver initial CanSolve:", solver.CanSolve)
+# except Exception as exc:
+#     print("Solver state read unavailable:", exc)
+
+# print("Creating material stream...")
+# feed = flowsheet.MaterialStreams.Add("Feed")
+# print("Material stream created:", feed.name)
+
+# feed.Temperature.SetValue(380.0, "C")
+# feed.Pressure.SetValue(25.0, "bar")
+# feed.MassFlow.SetValue(10000.0, "kg/h")
+
+# # 组分顺序与 COMPONENT_NAMES 一致：纯甲苯进料
+# set_molar_composition(
+#     feed,
+#     (1.0, 0.0, 0.0, 0.0, 0.0),
+# )
+
+try:
+    solver.CanSolve = True
+    print("Solver activated through COM")
+except Exception as exc:
+    print(
+        "Solver activation warning:",
+        exc,
+        "\nThe case may still be in Basis/Properties state.",
+    )
 
 # 6. 读回验证
 print("\n--- Feed readback ---")
@@ -167,5 +233,13 @@ except Exception as exc:
 assert abs(feed.Temperature.GetValue("C") - 380.0) < 0.01
 assert abs(feed.Pressure.GetValue("bar") - 25.0) < 0.01
 assert abs(feed.MassFlow.GetValue("kg/h") - 10000.0) < 0.1
+
+# 7. 自动保存模板（防止像上次一样案例丢失）
+save_path = r"C:\Users\Administrator\Desktop\procagent\project\simple\autosave\toluene_basis_verified.hsc"
+try:
+    case.SaveAs(save_path)
+    print("Case saved to:", save_path)
+except Exception as exc:
+    print("Auto-save warning (可手工保存):", exc)
 
 print("\nCREATE_TOLUENE_BASIS_OK")
