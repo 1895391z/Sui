@@ -1,0 +1,58 @@
+# 甲苯 Conversion Reactor 验证记录
+
+验证日期：2026-09-02  
+HYSYS：Aspen HYSYS V15  
+物性包：Peng-Robinson  
+进料：纯甲苯，10000 kg/h，380°C，25 bar
+
+## 模型真值探查
+
+| 对象 | 实际名称 | TypeName | 关键读取结果 |
+|---|---|---|---|
+| Conversion Reactor | `CRV-100` | `conversionreactorop` | 绑定 `RS-1` |
+| Conversion Reaction | `Rxn-1` | `conversionrxn` | 基准组分 Toluene |
+| Reaction Set | `RS-1` | `rxnset` | `Rxn-1` 为活动反应 |
+
+连接物流为 `Feed`、`Vap_Prod`、`Liq_Prod` 和能量流 `Q-100`。探查使用
+运行副本，原始手工基准在探查前后 SHA-256 保持不变。
+
+反应计量系数读回为：
+
+```text
+Toluene    -2.0
+Benzene     1.0
+p-Xylene    1.0000527473538292
+```
+
+HYSYS 根据数据库分子量进行了很小的质量配平修正。
+
+## 参数响应结果
+
+| 转化率 | 未反应甲苯 kg/h | 苯 kg/h | p-Xylene kg/h | 总出口 kg/h | 质量衡算误差 |
+|---:|---:|---:|---:|---:|---:|
+| 40% | 6000.000 | 1695.449 | 2304.551 | 10000.000 | 0.0% |
+| 50% | 5000.000 | 2119.311 | 2880.689 | 10000.000 | 0.0% |
+| 60% | 4000.000 | 2543.173 | 3456.827 | 10000.000 | 约 1.82e-14% |
+
+三个工况均满足：
+
+- `Solver.CanSolve = True`；
+- 输入温度、压力、质量流量、组成和转化率回读正确；
+- 转化率提高时，未反应甲苯下降，苯和 p-Xylene 增加；
+- 总质量衡算误差小于0.1%；
+- 只有完成全部校验后才输出 `RUN_TOLUENE_CASE_OK`。
+
+50%和40%工况从完全关闭的 HYSYS 冷启动。60%工况在 HYSYS 进程存在、但
+`SimulationCases.Count = 0` 的状态下使用全新的运行副本执行，用于验证参数响应。
+
+## 种子完整性
+
+仓库内反应器种子：
+
+```text
+cases/constant/toluene_reactor_seed.hsc
+SHA-256: 6272C78215B3369CA62642C3E8C8DE383C13AFAEE3C4C9314572DA23F5141C21
+```
+
+每次运行前复制为 `cases/runtime/toluene_reactor_run.hsc`，运行结束后再次检查
+种子哈希，运行副本和 HYSYS 自动备份不提交 Git。

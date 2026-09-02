@@ -1,0 +1,15 @@
+# Python-generated files
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local secrets and remote access files
+.env
+.env.*
+!.env.example
+*.rdp
+*.lic
+
+# HYSYS runtime and automatic backup files
+cases/runtime/
+*.bk0
