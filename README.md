@@ -21,6 +21,14 @@ AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成两个
 - 对比出口600°C和710°C；
 - 输出甲烷转化率、热负荷、质量衡算及 C/H/O 元素衡算。
 
+### 水煤浆蒸汽气化
+
+- 反应器：Gibbs Reactor；
+- 进料质量基准：默认1000 kg/h，其中煤按纯碳近似，占62 wt%；
+- 入口：40°C、40 bar；出口：1400°C；
+- 无氧进料，以外部热负荷维持指定出口温度；
+- 输出 CO 收率、碳转化率、热负荷、质量衡算及 C/H/O 元素衡算。
+
 ## 环境
 
 - Windows；
@@ -53,6 +61,12 @@ AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成两个
 & '..\.venv\Scripts\python.exe' '.\methane\methane_reforming_adapter.py' --outlet-temperature-c 710
 ```
 
+水煤浆气化默认工况：
+
+```powershell
+& '..\.venv\Scripts\python.exe' '.\coal\coal_gasification_adapter.py'
+```
+
 Python 调用示例：
 
 ```python
@@ -75,13 +89,14 @@ GitHub：
 ```text
 cases/constant/toluene_reactor_seed.hsc
 cases/constant/methane_reforming_seed.hsc
+cases/constant/coal_gasification_seed.hsc
 cases/runtime/...
 ```
 
 适配器每次将相应 seed 复制到 runtime 后运行，并在结束时重新校验 seed 的
 SHA-256。运行副本不会覆盖 seed。
 
-如果从全新的 Git clone 运行，需要从本地备份或发布包另行放入两个 seed；
+如果从全新的 Git clone 运行，需要从本地备份或发布包另行放入三个 seed；
 Git 仓库本身不包含 HYSYS 案例文件。
 
 ## 成功与失败
@@ -98,6 +113,6 @@ Git 仓库本身不包含 HYSYS 案例文件。
 ## 当前边界
 
 - 二甲苯异构体选择性未由题目给出，当前以 p-Xylene 表示总二甲苯；
-- 水煤浆气化和 Gibbs Reactor 场景尚未实现；
+- 水煤浆气化适配器尚未完成无人触碰冷启动验证；Gibbs 相态设置和固体碳结果仍需工程复核；
 - 自然语言分类、统一 CaseSpec/Result 路由和最终 CLI 尚未整合；
 - Live Demo 前仍需完整彩排并保留终端与 HYSYS 结果截图。
