@@ -91,6 +91,25 @@ RUN_COAL_GASIFICATION_CASE_OK
 `within_reported_component_gibbs_range=false` 和 `engineering_validated=false`，随后正常保存
 runtime 并关闭案例。
 
+## 统一自然语言 CLI 1200°C边界
+
+2026-09-03 使用内置连接管理器，从无 HYSYS 进程状态执行自然语言1200°C工况：
+
+- CLI 退出码0，`status=success`，Solver 收敛；
+- CO 收率 `40.86271006589623%`，相对1400°C仅变化约 `-1.42e-14` 个百分点；
+- 碳转化率 `61.294064964928886%`，相对1400°C增加约 `7.43e-06` 个百分点；
+- 热负荷 `1365.8795761964225 kW`，相对1400°C降低 `121.701260198614 kW`；
+- 质量衡算误差 `0.002213745165272485%`，C/H/O 元素衡算误差均远低于0.1%；
+- Gibbs 数据上限仍为426.85°C，外推幅度由973.15°C降至773.15°C，准确减少200°C；
+- `engineering_validation_status=limited`，CaseResult 与 stderr 均保留高温外推警告；
+- stdout 只包含 CaseResult JSON，stderr 包含12个连接、警告与适配器阶段标志；
+- 内置管理器关闭本次启动的 PID 9860，结束后无 HYSYS 或 Python 残留进程；
+- seed 运行前后 SHA-256 保持不变。
+
+虽然热负荷随出口温度降低而下降，但 CO 收率和碳转化率对200°C变化几乎不敏感。结合两个温度
+均远超组件 Gibbs 数据上限，该组成响应只能作为当前模型的数学结果，不能解释为已经验证的煤气化
+物理趋势。
+
 ## 本地 seed
 
 ```text
