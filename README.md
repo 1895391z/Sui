@@ -1,16 +1,25 @@
 # Sui
 
-AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成甲苯歧化
-`Conversion Reactor` 的第一个端到端闭环。
+AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成两个固定场景的
+端到端 HYSYS 适配器：甲苯歧化和甲烷蒸汽重整。
 
-## 已完成的甲苯场景
+## 已完成场景
 
-- 进料：纯甲苯，默认 `10000 kg/h`、`380°C`、`25 bar`；
+### 甲苯歧化
+
+- 反应器：Conversion Reactor；
+- 进料：纯甲苯，默认10000 kg/h、380°C、25 bar；
 - 反应：`2 Toluene -> Benzene + p-Xylene`；
-- 反应器：HYSYS `Conversion Reactor`；
-- 转化率：接口使用 `0~1` 的比例，适配器写入 HYSYS 时转换为百分数；
-- 输出：进料、气液产品物流、合并组分质量流量、收敛状态和质量衡算误差；
-- 假设：首个闭环以 `p-Xylene` 代表总二甲苯。
+- 转化率接口使用0到1的比例；
+- 首个闭环以 p-Xylene 代表总二甲苯。
+
+### 甲烷蒸汽重整
+
+- 反应器：Equilibrium Reactor；
+- 进料：默认总计100 kgmol/h、520°C、13.5 bar；
+- H2O/CH4 摩尔比：2.7；
+- 对比出口600°C和710°C；
+- 输出甲烷转化率、热负荷、质量衡算及 C/H/O 元素衡算。
 
 ## 环境
 
@@ -22,65 +31,73 @@ AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成甲苯
 
 ## 运行
 
-在仓库目录执行默认50%转化率工况：
+在 `Sui` 仓库目录执行。
+
+甲苯默认50%转化率：
 
 ```powershell
-& '..\.venv\Scripts\python.exe' '.\toluene_adapter.py'
+& '..\.venv\Scripts\python.exe' '.\toluene\toluene_adapter.py'
 ```
 
-测试40%或60%转化率：
+甲苯40%或60%转化率：
 
 ```powershell
-& '..\.venv\Scripts\python.exe' '.\toluene_adapter.py' --conversion 0.40
-& '..\.venv\Scripts\python.exe' '.\toluene_adapter.py' --conversion 0.60
+& '..\.venv\Scripts\python.exe' '.\toluene\toluene_adapter.py' --conversion 0.40
+& '..\.venv\Scripts\python.exe' '.\toluene\toluene_adapter.py' --conversion 0.60
 ```
 
-也可以从 Python 调用：
+甲烷重整600°C和710°C：
+
+```powershell
+& '..\.venv\Scripts\python.exe' '.\methane\methane_reforming_adapter.py' --outlet-temperature-c 600
+& '..\.venv\Scripts\python.exe' '.\methane\methane_reforming_adapter.py' --outlet-temperature-c 710
+```
+
+Python 调用示例：
 
 ```python
-from toluene_adapter import run_toluene_case
+from methane.methane_reforming_adapter import run_methane_reforming_case
 
-result = run_toluene_case(
-    feed_mass_flow_kg_h=10000.0,
-    feed_temperature_c=380.0,
-    pressure_bar=25.0,
-    conversion=0.50,
+result = run_methane_reforming_case(
+    total_feed_molar_flow_kgmole_h=100.0,
+    steam_to_carbon_ratio=2.7,
+    feed_temperature_c=520.0,
+    pressure_bar=13.5,
+    outlet_temperature_c=600.0,
 )
 ```
 
-只有在复制种子、打开案例、模型校验、输入写入、求解、结果读取、质量衡算、
-运行副本保存和关闭案例全部成功后，脚本才输出：
+## 本地案例策略
+
+所有 `.hsc` 案例均保存在 `Sui/cases`，整个目录由 `.gitignore` 排除，不上传
+GitHub：
 
 ```text
-RUN_TOLUENE_CASE_OK
+cases/constant/toluene_reactor_seed.hsc
+cases/constant/methane_reforming_seed.hsc
+cases/runtime/...
 ```
 
-任一关键步骤失败时进程以非零状态退出，不会打印成功标志。
+适配器每次将相应 seed 复制到 runtime 后运行，并在结束时重新校验 seed 的
+SHA-256。运行副本不会覆盖 seed。
 
-## 案例文件策略
+如果从全新的 Git clone 运行，需要从本地备份或发布包另行放入两个 seed；
+Git 仓库本身不包含 HYSYS 案例文件。
 
-```text
-cases/constant/toluene_reactor_seed.hsc  # 已验证、不可覆盖的反应器种子
-cases/runtime/toluene_reactor_run.hsc    # 每次运行重新生成，不提交 Git
-```
+## 成功与失败
 
-适配器只将种子复制到 `runtime` 后运行，并在结束时再次校验种子 SHA-256。
-种子包含 HYSYS V15 中实际确认的对象：
-
-- `CRV-100`：`conversionreactorop`；
-- `Rxn-1`：`conversionrxn`；
-- `RS-1`：`rxnset`；
-- `Feed`、`Vap_Prod`、`Liq_Prod` 和 `Q-100`。
+适配器只有在模型结构检查、输入写入、求解、结果读取、衡算、runtime 保存和
+案例关闭全部成功后，才输出相应的 `*_OK` 最终标志。任一关键步骤失败时以
+非零状态退出，不会继续宣称成功。
 
 ## 验证记录
 
-40%、50%、60%转化率均已通过实际 HYSYS 求解和质量衡算检查，详见
-[甲苯场景验证记录](docs/toluene_validation.md)。
+- [甲苯场景验证记录](docs/toluene_validation.md)
+- [甲烷重整验证记录](docs/methane_reforming_validation.md)
 
 ## 当前边界
 
-- 当前仅完成固定甲苯歧化场景；
-- 二甲苯异构体选择性未由题目给出，因此暂不拆分为三种异构体；
-- 尚未实现甲烷蒸汽重整和平衡反应器场景；
-- 尚未实现水煤浆气化和 Gibbs Reactor 场景；
-- Live Demo 前仍需进行完整彩排并保留终端与 HYSYS 结果截图。
+- 二甲苯异构体选择性未由题目给出，当前以 p-Xylene 表示总二甲苯；
+- 水煤浆气化和 Gibbs Reactor 场景尚未实现；
+- 自然语言分类、统一 CaseSpec/Result 路由和最终 CLI 尚未整合；
+- Live Demo 前仍需完整彩排并保留终端与 HYSYS 结果截图。

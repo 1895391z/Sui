@@ -50,7 +50,7 @@ HYSYS 根据数据库分子量进行了很小的质量配平修正。
 
 ## 种子完整性
 
-仓库内反应器种子：
+本地反应器种子（由 `/cases/` 规则排除，不提交 Git）：
 
 ```text
 cases/constant/toluene_reactor_seed.hsc
