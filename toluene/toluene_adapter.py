@@ -62,6 +62,7 @@ def validate_inputs(
     feed_temperature_c: float,
     pressure_bar: float,
     conversion: float,
+    xylene_split: dict[str, float],
 ) -> None:
     values = {
         "feed_mass_flow_kg_h": feed_mass_flow_kg_h,
@@ -79,6 +80,18 @@ def validate_inputs(
         raise ValueError("pressure_bar 必须大于 0")
     if not 0.0 <= conversion <= 1.0:
         raise ValueError("conversion 必须位于 [0, 1]，例如 50% 应传入 0.50")
+    expected_keys = {"o_xylene", "m_xylene", "p_xylene"}
+    if set(xylene_split) != expected_keys:
+        raise ValueError(f"xylene_split 必须且只能包含 {sorted(expected_keys)}")
+    if any(
+        not isinstance(value, (int, float))
+        or not math.isfinite(float(value))
+        or value < 0.0
+        for value in xylene_split.values()
+    ):
+        raise ValueError("xylene_split 必须包含三个非负有限数值")
+    if not math.isclose(sum(xylene_split.values()), 1.0, abs_tol=1e-9):
+        raise ValueError("xylene_split 三项之和必须为1")
 
 
 def prepare_runtime_case() -> str:
@@ -265,6 +278,7 @@ def configure_and_read_result(
     feed_temperature_c: float,
     pressure_bar: float,
     conversion: float,
+    xylene_split: dict[str, float],
 ) -> dict[str, Any]:
     configure_inputs_once(
         case,
@@ -300,6 +314,11 @@ def configure_and_read_result(
         )
         for component in COMPONENT_NAMES
     }
+    total_xylene_mass_flow = combined_component_flows["p-Xylene"]
+    derived_xylene_mass_flows = {
+        name: total_xylene_mass_flow * fraction
+        for name, fraction in xylene_split.items()
+    }
     total_product_mass = sum(
         stream["mass_flow_kg_h"] for stream in product_results.values()
     )
@@ -328,10 +347,16 @@ def configure_and_read_result(
             "streams": product_results,
             "combined_component_mass_flow_kg_h": combined_component_flows,
             "total_mass_flow_kg_h": total_product_mass,
+            "xylene_isomer_distribution": {
+                "derived_from_assumed_selectivity": True,
+                "basis": "HYSYS p-Xylene component interpreted as total xylene",
+                "split_fraction": dict(xylene_split),
+                "mass_flow_kg_h": derived_xylene_mass_flows,
+            },
         },
         "mass_balance_error_percent": mass_balance_error_percent,
         "assumptions": [
-            "首个闭环以 p-Xylene 代表总二甲苯",
+            "HYSYS 仍以 p-Xylene 代表总二甲苯；o/m/p 分布由选择性假设推导，并非原生组分结果",
             "输入 conversion 使用 0 到 1 的比例，写入 HYSYS 时转换为百分数",
         ],
     }
@@ -344,6 +369,7 @@ def run_with_retry(
     feed_temperature_c: float,
     pressure_bar: float,
     conversion: float,
+    xylene_split: dict[str, float],
 ) -> dict[str, Any]:
     deadline = time.monotonic() + RETRY_TIMEOUT_SECONDS
     attempt = 0
@@ -359,6 +385,7 @@ def run_with_retry(
                 feed_temperature_c,
                 pressure_bar,
                 conversion,
+                xylene_split,
             )
             print(f"RESULT_READ_OK: attempt={attempt}")
             return result
@@ -384,12 +411,20 @@ def run_toluene_case(
     feed_temperature_c: float = 380.0,
     pressure_bar: float = 25.0,
     conversion: float = 0.50,
+    xylene_split: dict[str, float] | None = None,
 ) -> dict[str, Any]:
+    if xylene_split is None:
+        xylene_split = {
+            "o_xylene": 1.0 / 3.0,
+            "m_xylene": 1.0 / 3.0,
+            "p_xylene": 1.0 / 3.0,
+        }
     validate_inputs(
         feed_mass_flow_kg_h,
         feed_temperature_c,
         pressure_bar,
         conversion,
+        xylene_split,
     )
     seed_hash = prepare_runtime_case()
 
@@ -406,6 +441,7 @@ def run_toluene_case(
         feed_temperature_c,
         pressure_bar,
         conversion,
+        xylene_split,
     )
 
     case.SaveAs(str(RUNTIME_PATH))

@@ -6,7 +6,14 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
-from .models import CaseSpec, CoalInputs, MethaneInputs, Scenario, TolueneInputs
+from .models import (
+    CaseSpec,
+    CoalInputs,
+    MethaneInputs,
+    Scenario,
+    TolueneInputs,
+    XyleneSplit,
+)
 
 
 NUMBER = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)"
@@ -217,6 +224,24 @@ def _toluene_inputs(text: str, questions: list[str], common: dict[str, float]) -
     conversion_value = _fraction("甲苯转化率", conversion, questions)
     if conversion_value is not None:
         values["conversion"] = conversion_value
+    split_match = re.search(
+        rf"(?:o\s*/\s*m\s*/\s*p|邻\s*/\s*间\s*/\s*对(?:二甲苯)?(?:比例)?)"
+        rf"\s*(?:为|是|=|:)?\s*(?P<o>{NUMBER})\s*%?\s*/\s*"
+        rf"(?P<m>{NUMBER})\s*%?\s*/\s*(?P<p>{NUMBER})\s*%?",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if split_match:
+        parts = [float(split_match.group(name)) for name in ("o", "m", "p")]
+        total = sum(parts)
+        if total <= 0.0:
+            questions.append("o/m/p 二甲苯比例之和必须大于0。")
+        else:
+            values["xylene_split"] = XyleneSplit(
+                o_xylene=parts[0] / total,
+                m_xylene=parts[1] / total,
+                p_xylene=parts[2] / total,
+            )
     return TolueneInputs(**values)
 
 

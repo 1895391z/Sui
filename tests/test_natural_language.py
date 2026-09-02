@@ -18,6 +18,12 @@ class NaturalLanguageParserTests(unittest.TestCase):
         self.assertEqual(spec.inputs.pressure_bar, 26.0)
         self.assertEqual(spec.inputs.conversion, 0.60)
 
+    def test_parses_assumed_xylene_split(self) -> None:
+        spec = parse_text_to_spec("甲苯歧化，o/m/p 20/30/50，转化率 50%")
+        self.assertEqual(spec.inputs.xylene_split.o_xylene, 0.2)
+        self.assertEqual(spec.inputs.xylene_split.m_xylene, 0.3)
+        self.assertEqual(spec.inputs.xylene_split.p_xylene, 0.5)
+
     def test_parses_methane_parameters_and_aliases(self) -> None:
         spec = parse_text_to_spec(
             "Methane steam reforming, total feed molar flow 110 kgmol/h, "

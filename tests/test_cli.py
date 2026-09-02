@@ -40,6 +40,14 @@ class CliDryRunTests(unittest.TestCase):
         self.assertEqual(payload["status"], "dry_run")
         self.assertEqual(payload["case_spec"]["inputs"]["conversion"], 0.6)
 
+    def test_explicit_xylene_split_is_normalized_in_dry_run(self) -> None:
+        completed = run_cli(
+            "toluene", "--xylene-split", "20,30,50", "--dry-run"
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        split = json.loads(completed.stdout)["case_spec"]["inputs"]["xylene_split"]
+        self.assertEqual(split, {"o_xylene": 0.2, "m_xylene": 0.3, "p_xylene": 0.5})
+
     def test_natural_language_clarification_never_executes_adapter(self) -> None:
         with patch.object(run_case, "execute_case") as execute:
             stdout = io.StringIO()

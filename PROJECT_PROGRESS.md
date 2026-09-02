@@ -22,10 +22,12 @@
 - 本地 `/cases/` 全目录 Git 排除，运行副本不覆盖不可变 seed；
 - 统一 CLI 验证文档和 README 入口；
 - 确定性自然语言分类、参数提取、单位检查、澄清响应和 dry-run 离线测试。
+- Toluene 可选 `xylene_split`，默认等比例；输出明确标记为选择性假设推导。
+- seed manifest 与只读校验器，能够区分 verified、missing 和 hash mismatch。
 
 ## 当前边界
 
-- Toluene 的 HYSYS 模型仍以 p-Xylene 表示总二甲苯，尚未交付 o/m/p 显式分布；
+- Toluene 的 HYSYS 模型仍以 p-Xylene 表示总二甲苯；o/m/p 已能显式输出，但属于假设推导；
 - Coal 1400°C 结果数学收敛但处于热力学数据外推区，不能宣称已完成工程验证；
 - `.hsc` seed 不进入 Git，全新 clone 仍需要单独交付和校验；
 - 自然语言入口目前为确定性规则，尚未获得三场景实机运行授权；
@@ -39,20 +41,15 @@
 2. 检查解析后的 CaseSpec、stdout、stderr、CaseResult、seed 哈希和进程退出；
 3. 对边界表达、缺单位和冲突参数做离线回归，确认澄清时绝不启动 HYSYS。
 
-### P0：二甲苯异构体交付口径
+### P0：二甲苯异构体实机回归
 
-1. 为 Toluene CaseSpec 增加可选 `xylene_split`；
-2. 默认采用明确披露的等比例假设，允许调用方覆盖；
-3. 如果当前 HYSYS seed 不能原生表示 o/m/p，则只输出由总二甲苯推导的分布；
-4. 在 CaseResult 中标记 `derived_from_assumed_selectivity=true`，不得伪装为 HYSYS 原生结果；
-5. 完成离线测试后，再申请一次实机回归授权。
+`xylene_split`、默认等比例、自然语言/CLI 覆盖和推导标志已完成离线实现。下一步在用户确认
+HYSYS 完全关闭后执行一次 Toluene 回归，核对总二甲苯质量流量与三个推导流量之和一致。
 
 ### P1：seed 可交付性
 
-1. 增加 seed manifest，记录三个文件名、用途、目标路径和 SHA-256；
-2. 增加只读校验脚本，报告 missing、hash mismatch 或 verified；
-3. 文档说明 GitHub clone 后如何从受控交付包恢复 seed；
-4. 交付前对三个 seed 做独立备份并核对哈希。
+manifest、只读校验脚本和 clone 后恢复说明已经完成。交付前仍需把三个 seed 放入受控发布包，
+做独立备份，并在目标机器运行一次 `verify_seeds.py --pretty`。
 
 ### P1：接口与回归矩阵
 

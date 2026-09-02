@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "seeds": [
+    {
+      "scenario": "toluene_disproportionation",
+      "path": "cases/constant/toluene_reactor_seed.hsc",
+      "sha256": "6272c78215b3369ca62642c3e8c8de383c13afaee3c4c9314572da23f5141c21",
+      "purpose": "Conversion Reactor baseline for toluene disproportionation"
+    },
+    {
+      "scenario": "methane_steam_reforming",
+      "path": "cases/constant/methane_reforming_seed.hsc",
+      "sha256": "f1e3b482df0b1e0f8525bd33932253b00a82428d11425559790fdade82b47c72",
+      "purpose": "Equilibrium Reactor baseline for methane steam reforming"
+    },
+    {
+      "scenario": "coal_slurry_gasification",
+      "path": "cases/constant/coal_gasification_seed.hsc",
+      "sha256": "f88d2cd59da5156c8a2d324691c0ac7d6dbb7a4bd852604eec3bdcd88d9448ab",
+      "purpose": "Gibbs Reactor baseline for coal-slurry steam gasification"
+    }
+  ]
+}

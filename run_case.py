@@ -18,6 +18,7 @@ from core.models import (
     MethaneInputs,
     Scenario,
     TolueneInputs,
+    XyleneSplit,
 )
 from core.service import execute_case
 from core.natural_language import ClarificationRequired, parse_text_to_spec
@@ -65,6 +66,19 @@ def add_output_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def xylene_split_argument(value: str) -> XyleneSplit:
+    try:
+        parts = [float(item.strip()) for item in value.split(",")]
+        if len(parts) != 3 or sum(parts) <= 0.0:
+            raise ValueError
+        total = sum(parts)
+        return XyleneSplit(*(item / total for item in parts))
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(
+            "xylene split must contain three non-negative comma-separated values"
+        ) from exc
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = JsonArgumentParser(
         description="Run a validated fixed-scenario HYSYS case through one unified CLI."
@@ -81,6 +95,13 @@ def build_parser() -> argparse.ArgumentParser:
     toluene.add_argument("--feed-temperature-c", type=float, default=380.0)
     toluene.add_argument("--pressure-bar", type=float, default=25.0)
     toluene.add_argument("--conversion", type=float, default=0.50)
+    toluene.add_argument(
+        "--xylene-split",
+        type=xylene_split_argument,
+        default=XyleneSplit(),
+        metavar="O,M,P",
+        help="Assumed o-/m-/p-xylene split; values are normalized to sum to one.",
+    )
     add_output_arguments(toluene)
 
     methane = subparsers.add_parser("methane", help="Methane steam reforming")
@@ -116,6 +137,7 @@ def build_spec(args: argparse.Namespace) -> CaseSpec:
                 feed_temperature_c=args.feed_temperature_c,
                 pressure_bar=args.pressure_bar,
                 conversion=args.conversion,
+                xylene_split=args.xylene_split,
             ),
         )
     if args.command == "methane":

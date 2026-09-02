@@ -41,6 +41,20 @@ class NormalizerTests(unittest.TestCase):
             EngineeringValidationStatus.NOT_ASSESSED,
         )
 
+    def test_toluene_preserves_assumed_xylene_distribution(self) -> None:
+        spec = CaseSpec(Scenario.TOLUENE, TolueneInputs())
+        raw = base_raw("Conversion Reactor")
+        raw["products"]["xylene_isomer_distribution"] = {
+            "derived_from_assumed_selectivity": True,
+            "split_fraction": {"o_xylene": 1 / 3, "m_xylene": 1 / 3, "p_xylene": 1 / 3},
+        }
+        raw.update({"conversion_fraction": 0.5, "conversion_percent": 50.0})
+        result = normalize_result(spec, raw)
+        self.assertTrue(
+            result.aggregates["xylene_isomer_distribution"]
+            ["derived_from_assumed_selectivity"]
+        )
+
     def test_methane_mapping(self) -> None:
         spec = CaseSpec(Scenario.METHANE, MethaneInputs())
         raw = base_raw("Equilibrium Reactor")

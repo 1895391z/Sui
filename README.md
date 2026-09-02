@@ -13,7 +13,8 @@ AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成三个
 - 进料：纯甲苯，默认10000 kg/h、380°C、25 bar；
 - 反应：`2 Toluene -> Benzene + p-Xylene`；
 - 转化率接口使用0到1的比例；
-- 首个闭环以 p-Xylene 代表总二甲苯。
+- HYSYS 以 p-Xylene 代表总二甲苯；CaseResult 将其按显式选择性假设推导为 o/m/p 分布，
+  默认等比例，并标记 `derived_from_assumed_selectivity=true`。
 
 ### 甲烷蒸汽重整
 
@@ -50,6 +51,12 @@ AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成三个
 & '..\.venv\Scripts\python.exe' '.\run_case.py' toluene --conversion 0.50
 & '..\.venv\Scripts\python.exe' '.\run_case.py' methane --outlet-temperature-c 710
 & '..\.venv\Scripts\python.exe' '.\run_case.py' coal
+```
+
+指定 Toluene 的假设 o/m/p 分布（输入会归一化）：
+
+```powershell
+& '..\.venv\Scripts\python.exe' '.\run_case.py' toluene --xylene-split 20,30,50 --dry-run --output-format pretty
 ```
 
 自然语言入口采用本地确定性规则，不依赖网络或大模型：
@@ -141,6 +148,15 @@ SHA-256。运行副本不会覆盖 seed。
 如果从全新的 Git clone 运行，需要从本地备份或发布包另行放入三个 seed；
 Git 仓库本身不包含 HYSYS 案例文件。
 
+放入 seed 后执行只读完整性检查：
+
+```powershell
+& '..\.venv\Scripts\python.exe' '.\verify_seeds.py' --pretty
+```
+
+校验器按照 [seed_manifest.json](seed_manifest.json) 报告每个文件为 `verified`、`missing` 或
+`hash_mismatch`，不会启动 HYSYS，也不会修改 seed。
+
 ## 成功与失败
 
 适配器只有在模型结构检查、输入写入、求解、结果读取、衡算、runtime 保存和
@@ -157,7 +173,7 @@ Git 仓库本身不包含 HYSYS 案例文件。
 
 ## 当前边界
 
-- 二甲苯异构体选择性未由题目给出，当前以 p-Xylene 表示总二甲苯；
+- 二甲苯异构体选择性未由题目给出；当前 o/m/p 仅为显式假设推导，不是 HYSYS 原生组分结果；
 - 水煤浆气化已通过冷启动和连续3次重复性验证；1400°C Gibbs 外推结果仍需工程复核；
 - 统一 CLI 已完成三个场景的独立冷启动、UTF-8 JSON 和 stdout/stderr 分离验收；
 - 自然语言分类与参数提取已完成离线实现，尚待授权进行三场景实机验收；

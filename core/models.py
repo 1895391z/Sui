@@ -33,15 +33,43 @@ def _finite(name: str, value: float) -> float:
 
 
 @dataclass(frozen=True)
+class XyleneSplit:
+    o_xylene: float = 1.0 / 3.0
+    m_xylene: float = 1.0 / 3.0
+    p_xylene: float = 1.0 / 3.0
+
+    def __post_init__(self) -> None:
+        for name in self.__dataclass_fields__:
+            object.__setattr__(self, name, _finite(name, getattr(self, name)))
+            if getattr(self, name) < 0.0:
+                raise ValueError(f"{name} must be greater than or equal to 0")
+        if not math.isclose(
+            self.o_xylene + self.m_xylene + self.p_xylene,
+            1.0,
+            rel_tol=0.0,
+            abs_tol=1e-9,
+        ):
+            raise ValueError("xylene_split fractions must sum to 1")
+
+
+@dataclass(frozen=True)
 class TolueneInputs:
     feed_mass_flow_kg_h: float = 10000.0
     feed_temperature_c: float = 380.0
     pressure_bar: float = 25.0
     conversion: float = 0.50
+    xylene_split: XyleneSplit = field(default_factory=XyleneSplit)
 
     def __post_init__(self) -> None:
-        for name in self.__dataclass_fields__:
+        for name in (
+            "feed_mass_flow_kg_h",
+            "feed_temperature_c",
+            "pressure_bar",
+            "conversion",
+        ):
             object.__setattr__(self, name, _finite(name, getattr(self, name)))
+        if not isinstance(self.xylene_split, XyleneSplit):
+            raise TypeError("xylene_split must be an XyleneSplit")
         if self.feed_mass_flow_kg_h <= 0.0:
             raise ValueError("feed_mass_flow_kg_h must be greater than 0")
         if self.pressure_bar <= 0.0:

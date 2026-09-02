@@ -7,6 +7,7 @@ from .models import (
     MethaneInputs,
     Scenario,
     TolueneInputs,
+    XyleneSplit,
 )
 from .service import execute_case
 
@@ -17,5 +18,6 @@ __all__ = [
     "MethaneInputs",
     "Scenario",
     "TolueneInputs",
+    "XyleneSplit",
     "execute_case",
 ]
