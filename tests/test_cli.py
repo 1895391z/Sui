@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+import io
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+import run_case
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
@@ -44,7 +48,7 @@ class CliDryRunTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         payload = json.loads(completed.stdout)
         self.assertEqual(payload["status"], "failed")
-        self.assertEqual(payload["error"]["type"], "ValueError")
+        self.assertEqual(payload["error"]["type"], "CliInputError")
 
     def test_argparse_type_error_is_json_and_exit_two(self) -> None:
         completed = run_cli("coal", "--pressure-bar", "not-a-number", "--dry-run")
@@ -84,6 +88,39 @@ class CliDryRunTests(unittest.TestCase):
             payload = json.loads(completed.stdout)
             self.assertEqual(payload["status"], "failed")
             self.assertEqual(payload["error"]["type"], "PermissionError")
+
+    def test_chinese_success_payload_reconfigures_stdout_to_utf8(self) -> None:
+        class FakeResult:
+            def to_dict(self) -> dict[str, object]:
+                return {
+                    "schema_version": "1.0",
+                    "status": "success",
+                    "selection_reason": "已知甲苯转化率且不要求动力学",
+                    "assumptions": ["中文输出必须保持有效JSON"],
+                }
+
+        stdout_bytes = io.BytesIO()
+        stderr_bytes = io.BytesIO()
+        stdout = io.TextIOWrapper(stdout_bytes, encoding="cp1252")
+        stderr = io.TextIOWrapper(stderr_bytes, encoding="cp1252")
+        with (
+            patch.object(sys, "stdout", stdout),
+            patch.object(sys, "stderr", stderr),
+            patch.object(run_case, "execute_case", return_value=FakeResult()),
+        ):
+            exit_code = run_case.main(["toluene"])
+            stdout.flush()
+            stderr.flush()
+
+        self.assertEqual(exit_code, 0)
+        payload = json.loads(stdout_bytes.getvalue().decode("utf-8"))
+        self.assertEqual(payload["selection_reason"], "已知甲苯转化率且不要求动力学")
+        self.assertEqual(stdout.encoding, "utf-8")
+        self.assertEqual(stderr.encoding, "utf-8")
+
+    def test_unicode_encode_error_is_not_classified_as_input(self) -> None:
+        error = UnicodeEncodeError("ascii", "中", 0, 1, "unsupported")
+        self.assertEqual(run_case.exit_code_for(error), run_case.EXIT_UNEXPECTED)
 
 
 if __name__ == "__main__":

@@ -39,6 +39,12 @@ class JsonArgumentParser(argparse.ArgumentParser):
         raise CliInputError(message)
 
 
+def configure_standard_streams() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def add_output_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--output-format",
@@ -152,7 +158,7 @@ def error_payload(args: argparse.Namespace, exc: Exception) -> dict[str, Any]:
 
 
 def exit_code_for(exc: Exception) -> int:
-    if isinstance(exc, (TypeError, ValueError)):
+    if isinstance(exc, CliInputError):
         return EXIT_INPUT
     if isinstance(exc, FileNotFoundError):
         return EXIT_MISSING_SEED
@@ -164,11 +170,15 @@ def exit_code_for(exc: Exception) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_standard_streams()
     parser = build_parser()
     args: argparse.Namespace | None = None
     try:
         args = parser.parse_args(argv)
-        spec = build_spec(args)
+        try:
+            spec = build_spec(args)
+        except (TypeError, ValueError) as exc:
+            raise CliInputError(str(exc)) from exc
         if args.dry_run:
             emit_payload(
                 {
