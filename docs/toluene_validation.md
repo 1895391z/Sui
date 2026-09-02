@@ -1,8 +1,11 @@
 # 甲苯 Conversion Reactor 验证记录
 
-验证日期：2026-09-02  
-HYSYS：Aspen HYSYS V15  
-物性包：Peng-Robinson  
+验证日期：2026-09-02
+
+HYSYS：Aspen HYSYS V15
+
+物性包：Peng-Robinson
+
 进料：纯甲苯，10000 kg/h，380°C，25 bar
 
 ## 模型真值探查
