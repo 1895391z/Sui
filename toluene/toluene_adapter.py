@@ -31,7 +31,7 @@ COMPONENT_NAMES = (
 )
 PURE_TOLUENE_COMPOSITION = (1.0, 0.0, 0.0, 0.0, 0.0)
 
-REPOSITORY_ROOT = Path(__file__).resolve().parent
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 SEED_PATH = REPOSITORY_ROOT / "cases" / "constant" / "toluene_reactor_seed.hsc"
 RUNTIME_DIR = REPOSITORY_ROOT / "cases" / "runtime"
 RUNTIME_PATH = RUNTIME_DIR / "toluene_reactor_run.hsc"

@@ -10,6 +10,6 @@ __pycache__/
 *.rdp
 *.lic
 
-# HYSYS runtime and automatic backup files
-cases/runtime/
+# Local HYSYS case library: do not publish any file below Sui/cases.
+/cases/
 *.bk0
