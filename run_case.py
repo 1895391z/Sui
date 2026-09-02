@@ -92,6 +92,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--text",
         help="Parse one Chinese or English natural-language case request.",
     )
+    parser.add_argument(
+        "--case-spec",
+        type=Path,
+        help="Read one strict UTF-8 CaseSpec JSON file.",
+    )
     add_output_arguments(parser)
     subparsers = parser.add_subparsers(dest="command")
 
@@ -130,10 +135,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def build_spec(args: argparse.Namespace) -> CaseSpec:
+    source_count = sum(
+        source is not None
+        for source in (args.text, args.case_spec, args.command)
+    )
+    if source_count != 1:
+        raise CliInputError(
+            "provide exactly one input source: --text, --case-spec, "
+            "or a scenario subcommand"
+        )
     if args.text is not None:
-        if args.command is not None:
-            raise CliInputError("--text cannot be combined with a scenario subcommand")
         return parse_text_to_spec(args.text)
+    if args.case_spec is not None:
+        return load_case_spec(args.case_spec)
     if args.command == "toluene":
         return CaseSpec(
             scenario=Scenario.TOLUENE,
@@ -170,6 +184,21 @@ def build_spec(args: argparse.Namespace) -> CaseSpec:
             ),
         )
     raise CliInputError("provide --text or a scenario subcommand")
+
+
+def load_case_spec(path: Path) -> CaseSpec:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise CliInputError(f"cannot read CaseSpec file {path}: {exc}") from exc
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise CliInputError(
+            f"invalid CaseSpec JSON in {path}: line {exc.lineno}, "
+            f"column {exc.colno}: {exc.msg}"
+        ) from exc
+    return CaseSpec.from_dict(payload)
 
 
 def serialize_payload(payload: dict[str, Any], output_format: str) -> str:

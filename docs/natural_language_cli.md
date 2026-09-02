@@ -88,5 +88,4 @@ Methane 600°C 和 Coal 1400°C 工况也已完成实机冷启动。
 
 ## 尚未执行
 
-- JSON CaseSpec 文件输入；
 - 可选 LLM 解析器。

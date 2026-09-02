@@ -30,6 +30,79 @@ def run_cli(*arguments: str) -> subprocess.CompletedProcess[str]:
 
 
 class CliDryRunTests(unittest.TestCase):
+    def write_case_spec(self, directory: str, spec: dict[str, object]) -> Path:
+        path = Path(directory) / "case_spec.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        return path
+
+    def test_json_case_spec_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            spec = run_case.CaseSpec(
+                run_case.Scenario.METHANE,
+                run_case.MethaneInputs(outlet_temperature_c=710.0),
+            )
+            path = self.write_case_spec(directory, spec.to_dict())
+            completed = run_cli(
+                "--case-spec", str(path), "--dry-run", "--output-format", "pretty"
+            )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["status"], "dry_run")
+        self.assertEqual(
+            payload["case_spec"]["inputs"]["outlet_temperature_c"], 710.0
+        )
+
+    def test_json_case_spec_is_mutually_exclusive_with_other_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            spec = run_case.CaseSpec(
+                run_case.Scenario.COAL,
+                run_case.CoalInputs(),
+            )
+            path = self.write_case_spec(directory, spec.to_dict())
+            completed = run_cli(
+                "--case-spec", str(path), "--text", "运行水煤浆气化", "--dry-run"
+            )
+            subcommand = run_cli(
+                "--case-spec", str(path), "coal", "--dry-run"
+            )
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(json.loads(completed.stdout)["error"]["type"], "CliInputError")
+        self.assertEqual(subcommand.returncode, 2)
+        self.assertEqual(json.loads(subcommand.stdout)["error"]["type"], "CliInputError")
+
+    def test_json_case_spec_errors_are_exit_two(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            malformed = Path(directory) / "malformed.json"
+            malformed.write_text("{invalid", encoding="utf-8")
+            malformed_result = run_cli("--case-spec", str(malformed), "--dry-run")
+            missing_result = run_cli(
+                "--case-spec", str(Path(directory) / "missing.json"), "--dry-run"
+            )
+        self.assertEqual(malformed_result.returncode, 2)
+        self.assertEqual(missing_result.returncode, 2)
+        self.assertEqual(
+            json.loads(malformed_result.stdout)["error"]["type"], "CliInputError"
+        )
+        self.assertEqual(
+            json.loads(missing_result.stdout)["error"]["type"], "CliInputError"
+        )
+
+    def test_json_dry_run_never_enters_hysys_manager(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            spec = run_case.CaseSpec(
+                run_case.Scenario.TOLUENE,
+                run_case.TolueneInputs(),
+            )
+            path = self.write_case_spec(directory, spec.to_dict())
+            with patch.object(run_case, "managed_hysys") as manager:
+                stdout = io.StringIO()
+                with redirect_stdout(stdout):
+                    exit_code = run_case.main(
+                        ["--case-spec", str(path), "--dry-run"]
+                    )
+        self.assertEqual(exit_code, 0)
+        manager.assert_not_called()
+
     def test_natural_language_dry_run_builds_case_spec(self) -> None:
         completed = run_cli(
             "--text",

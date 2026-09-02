@@ -131,6 +131,26 @@ EXPECTED_INPUT_TYPE: dict[Scenario, type[ScenarioInputs]] = {
 }
 
 
+def _require_exact_keys(
+    label: str,
+    value: Any,
+    expected_keys: set[str],
+) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise TypeError(f"{label} must be a JSON object")
+    actual_keys = set(value)
+    missing = sorted(expected_keys - actual_keys)
+    unexpected = sorted(actual_keys - expected_keys)
+    if missing or unexpected:
+        details: list[str] = []
+        if missing:
+            details.append(f"missing={missing}")
+        if unexpected:
+            details.append(f"unexpected={unexpected}")
+        raise ValueError(f"{label} fields are invalid: {', '.join(details)}")
+    return value
+
+
 @dataclass(frozen=True)
 class CaseSpec:
     scenario: Scenario
@@ -158,6 +178,47 @@ class CaseSpec:
             "scenario": self.scenario.value,
             "inputs": asdict(self.inputs),
         }
+
+    @classmethod
+    def from_dict(cls, payload: Any) -> CaseSpec:
+        root = _require_exact_keys(
+            "CaseSpec",
+            payload,
+            {"schema_version", "scenario", "inputs"},
+        )
+        scenario_value = root["scenario"]
+        if not isinstance(scenario_value, str):
+            raise TypeError("CaseSpec scenario must be a string")
+        try:
+            scenario = Scenario(scenario_value)
+        except ValueError as exc:
+            supported = [item.value for item in Scenario]
+            raise ValueError(
+                f"Unsupported CaseSpec scenario={scenario_value!r}; "
+                f"supported={supported}"
+            ) from exc
+
+        input_type = EXPECTED_INPUT_TYPE[scenario]
+        expected_input_keys = set(input_type.__dataclass_fields__)
+        inputs = dict(
+            _require_exact_keys(
+                f"{scenario.value} inputs",
+                root["inputs"],
+                expected_input_keys,
+            )
+        )
+        if scenario is Scenario.TOLUENE:
+            split = _require_exact_keys(
+                "xylene_split",
+                inputs["xylene_split"],
+                set(XyleneSplit.__dataclass_fields__),
+            )
+            inputs["xylene_split"] = XyleneSplit(**split)
+        return cls(
+            scenario=scenario,
+            inputs=input_type(**inputs),
+            schema_version=root["schema_version"],
+        )
 
 
 @dataclass(frozen=True)

@@ -71,6 +71,17 @@ AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成三个
 未明确写出的参数采用场景默认值；已经写出但缺少单位、数值冲突或同时出现多个场景时，CLI
 返回 `clarification_required` 和具体问题，退出码为2，并且不会进入 Router 或启动 HYSYS。
 
+从严格 UTF-8 JSON 文件读取完整 CaseSpec：
+
+```powershell
+& '..\.venv\Scripts\python.exe' '.\run_case.py' --case-spec '.\my_case.json' --dry-run --output-format pretty
+```
+
+`--case-spec`、`--text` 和三个场景子命令是互斥输入源。JSON 根对象、场景 inputs 和嵌套
+`xylene_split` 必须包含完整且准确的字段；缺失字段、未知字段、错误 schema 版本、无效场景、
+文件读取失败或 JSON 语法错误均返回退出码2。格式与完整示例见
+[JSON CaseSpec 输入](docs/json_case_spec.md)。
+
 只解析并校验参数、不导入适配器且不启动 HYSYS：
 
 ```powershell
@@ -180,6 +191,7 @@ Git 仓库本身不包含 HYSYS 案例文件。
 - [水煤浆气化验证记录](docs/coal_gasification_validation.md)
 - [统一 CaseSpec / CaseResult CLI 验证记录](docs/unified_cli_validation.md)
 - [自然语言 CLI 离线验证记录](docs/natural_language_cli.md)
+- [JSON CaseSpec 输入与离线验证](docs/json_case_spec.md)
 
 ## 当前边界
 
@@ -189,5 +201,5 @@ Git 仓库本身不包含 HYSYS 案例文件。
 - 自然语言分类与参数提取已完成离线实现，尚待授权进行三场景实机验收；
 - 普通启动后连接活动 COM 对象的外层方案已通过 Toluene 实机验收；统一 CLI 内置连接管理器
   也已通过 Toluene、Methane 与 Coal 的独立冷启动回归；
-- JSON CaseSpec 文件输入尚未整合，并按当前计划排在自然语言入口之后；
+- JSON CaseSpec 文件输入已完成离线实现和 Toluene live run 验收；
 - Live Demo 前仍需完整彩排并保留终端与 HYSYS 结果截图。
