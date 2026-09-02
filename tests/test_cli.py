@@ -6,11 +6,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import contextmanager, nullcontext, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
 import run_case
+from core.errors import HysysConnectionError
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
@@ -49,12 +50,16 @@ class CliDryRunTests(unittest.TestCase):
         self.assertEqual(split, {"o_xylene": 0.2, "m_xylene": 0.3, "p_xylene": 0.5})
 
     def test_natural_language_clarification_never_executes_adapter(self) -> None:
-        with patch.object(run_case, "execute_case") as execute:
+        with (
+            patch.object(run_case, "execute_case") as execute,
+            patch.object(run_case, "managed_hysys") as manager,
+        ):
             stdout = io.StringIO()
             with redirect_stdout(stdout):
                 exit_code = run_case.main(["--text", "运行甲苯歧化，压力 25"])
         self.assertEqual(exit_code, 2)
         execute.assert_not_called()
+        manager.assert_not_called()
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["status"], "clarification_required")
         self.assertTrue(payload["questions"])
@@ -73,6 +78,58 @@ class CliDryRunTests(unittest.TestCase):
                 payload = json.loads(completed.stdout)
                 self.assertEqual(payload["status"], "dry_run")
                 self.assertEqual(payload["case_spec"]["scenario"], scenario)
+
+    def test_dry_run_does_not_enter_hysys_manager(self) -> None:
+        with patch.object(run_case, "managed_hysys") as manager:
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = run_case.main(["coal", "--dry-run"])
+        self.assertEqual(exit_code, 0)
+        manager.assert_not_called()
+
+    def test_connection_failure_is_exit_four_with_parsed_scenario(self) -> None:
+        with patch.object(
+            run_case,
+            "managed_hysys",
+            side_effect=HysysConnectionError("startup failed"),
+        ):
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = run_case.main(["--text", "运行甲苯歧化默认工况"])
+        self.assertEqual(exit_code, 4)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["scenario"], "toluene_disproportionation")
+        self.assertEqual(payload["error"]["type"], "HysysConnectionError")
+
+    def test_connection_and_adapter_logs_stay_on_stderr(self) -> None:
+        class FakeResult:
+            def to_dict(self) -> dict[str, object]:
+                return {"schema_version": "1.0", "status": "success"}
+
+        @contextmanager
+        def fake_manager():
+            print("HYSYS_NORMAL_LAUNCH_STARTED: pid=1234")
+            yield
+            print("HYSYS_LAUNCHED_PROCESS_CLOSED: pid=1234")
+
+        def fake_execute(_spec):
+            print("ADAPTER_OK")
+            return FakeResult()
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch.object(run_case, "managed_hysys", fake_manager),
+            patch.object(run_case, "execute_case", fake_execute),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            exit_code = run_case.main(["toluene"])
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(json.loads(stdout.getvalue())["status"], "success")
+        self.assertNotIn("HYSYS_", stdout.getvalue())
+        self.assertIn("HYSYS_NORMAL_LAUNCH_STARTED", stderr.getvalue())
+        self.assertIn("ADAPTER_OK", stderr.getvalue())
 
     def test_semantic_input_error_is_json_and_exit_two(self) -> None:
         completed = run_cli("toluene", "--conversion", "1.5", "--dry-run")
@@ -138,6 +195,7 @@ class CliDryRunTests(unittest.TestCase):
             patch.object(sys, "stdout", stdout),
             patch.object(sys, "stderr", stderr),
             patch.object(run_case, "execute_case", return_value=FakeResult()),
+            patch.object(run_case, "managed_hysys", return_value=nullcontext()),
         ):
             exit_code = run_case.main(["toluene"])
             stdout.flush()

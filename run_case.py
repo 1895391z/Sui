@@ -10,7 +10,12 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any
 
-from core.errors import AdapterExecutionError, ResultValidationError
+from core.errors import (
+    AdapterExecutionError,
+    HysysConnectionError,
+    ResultValidationError,
+)
+from core.hysys_connection import managed_hysys
 from core.models import (
     SCHEMA_VERSION,
     CaseSpec,
@@ -180,7 +185,11 @@ def emit_payload(payload: dict[str, Any], args: argparse.Namespace) -> None:
     print(text)
 
 
-def error_payload(args: argparse.Namespace, exc: Exception) -> dict[str, Any]:
+def error_payload(
+    args: argparse.Namespace,
+    exc: Exception,
+    spec: CaseSpec | None = None,
+) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "status": (
@@ -188,7 +197,11 @@ def error_payload(args: argparse.Namespace, exc: Exception) -> dict[str, Any]:
             if isinstance(exc, ClarificationRequired)
             else "failed"
         ),
-        "scenario": getattr(args, "command", None),
+        "scenario": (
+            spec.scenario.value
+            if spec is not None
+            else getattr(args, "command", None)
+        ),
         "error": {"type": type(exc).__name__, "message": str(exc)},
     }
     if isinstance(exc, ClarificationRequired):
@@ -201,7 +214,7 @@ def exit_code_for(exc: Exception) -> int:
         return EXIT_INPUT
     if isinstance(exc, FileNotFoundError):
         return EXIT_MISSING_SEED
-    if isinstance(exc, AdapterExecutionError):
+    if isinstance(exc, (AdapterExecutionError, HysysConnectionError)):
         return EXIT_ADAPTER
     if isinstance(exc, ResultValidationError):
         return EXIT_RESULT
@@ -212,6 +225,7 @@ def main(argv: list[str] | None = None) -> int:
     configure_standard_streams()
     parser = build_parser()
     args: argparse.Namespace | None = None
+    spec: CaseSpec | None = None
     try:
         args = parser.parse_args(argv)
         try:
@@ -234,7 +248,8 @@ def main(argv: list[str] | None = None) -> int:
         adapter_output = io.StringIO()
         try:
             with redirect_stdout(adapter_output):
-                result = execute_case(spec)
+                with managed_hysys():
+                    result = execute_case(spec)
         finally:
             logs = adapter_output.getvalue()
             if logs:
@@ -255,7 +270,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         else:
-            print(serialize_payload(error_payload(args, exc), args.output_format))
+            print(
+                serialize_payload(
+                    error_payload(args, exc, spec),
+                    args.output_format,
+                )
+            )
         return exit_code_for(exc)
 
 

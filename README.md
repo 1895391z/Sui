@@ -88,6 +88,16 @@ AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成三个
 - `5`：原生结果无法标准化为 CaseResult；
 - `1`：其他未分类异常。
 
+### HYSYS 启动策略
+
+统一 CLI 的 live run 不再依赖会在当前环境触发 CLR 崩溃的 COM `/Automation` 冷激活。
+当没有活动 HYSYS 对象时，连接管理器从 `HYSYS.Application` 注册信息定位可执行文件，按普通方式
+启动 HYSYS，最长等待60秒取得 `GetActiveObject`，再进入原有 Router 和适配器。执行结束后仅关闭
+由本次管理器启动的进程；如果运行前已经存在活动实例，则复用但不负责关闭。可通过环境变量
+`HYSYS_EXE_PATH` 显式覆盖可执行文件路径。
+
+`--dry-run` 在进入连接管理器之前返回，不导入 pywin32、不启动 HYSYS。
+
 也可以直接运行单个适配器：
 
 甲苯默认50%转化率：
@@ -177,5 +187,7 @@ Git 仓库本身不包含 HYSYS 案例文件。
 - 水煤浆气化已通过冷启动和连续3次重复性验证；1400°C Gibbs 外推结果仍需工程复核；
 - 统一 CLI 已完成三个场景的独立冷启动、UTF-8 JSON 和 stdout/stderr 分离验收；
 - 自然语言分类与参数提取已完成离线实现，尚待授权进行三场景实机验收；
+- 普通启动后连接活动 COM 对象的外层方案已通过 Toluene 实机验收；统一 CLI 内置连接管理器
+  也已通过 Toluene、Methane 与 Coal 的独立冷启动回归；
 - JSON CaseSpec 文件输入尚未整合，并按当前计划排在自然语言入口之后；
 - Live Demo 前仍需完整彩排并保留终端与 HYSYS 结果截图。
