@@ -20,6 +20,7 @@ from core.models import (
     TolueneInputs,
 )
 from core.service import execute_case
+from core.natural_language import ClarificationRequired, parse_text_to_spec
 
 
 EXIT_OK = 0
@@ -68,7 +69,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = JsonArgumentParser(
         description="Run a validated fixed-scenario HYSYS case through one unified CLI."
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument(
+        "--text",
+        help="Parse one Chinese or English natural-language case request.",
+    )
+    add_output_arguments(parser)
+    subparsers = parser.add_subparsers(dest="command")
 
     toluene = subparsers.add_parser("toluene", help="Toluene disproportionation")
     toluene.add_argument("--feed-mass-flow-kg-h", type=float, default=10000.0)
@@ -98,6 +104,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def build_spec(args: argparse.Namespace) -> CaseSpec:
+    if args.text is not None:
+        if args.command is not None:
+            raise CliInputError("--text cannot be combined with a scenario subcommand")
+        return parse_text_to_spec(args.text)
     if args.command == "toluene":
         return CaseSpec(
             scenario=Scenario.TOLUENE,
@@ -132,7 +142,7 @@ def build_spec(args: argparse.Namespace) -> CaseSpec:
                 outlet_temperature_c=args.outlet_temperature_c,
             ),
         )
-    raise ValueError(f"Unsupported command: {args.command!r}")
+    raise CliInputError("provide --text or a scenario subcommand")
 
 
 def serialize_payload(payload: dict[str, Any], output_format: str) -> str:
@@ -149,16 +159,23 @@ def emit_payload(payload: dict[str, Any], args: argparse.Namespace) -> None:
 
 
 def error_payload(args: argparse.Namespace, exc: Exception) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
-        "status": "failed",
+        "status": (
+            "clarification_required"
+            if isinstance(exc, ClarificationRequired)
+            else "failed"
+        ),
         "scenario": getattr(args, "command", None),
         "error": {"type": type(exc).__name__, "message": str(exc)},
     }
+    if isinstance(exc, ClarificationRequired):
+        payload["questions"] = list(exc.questions)
+    return payload
 
 
 def exit_code_for(exc: Exception) -> int:
-    if isinstance(exc, CliInputError):
+    if isinstance(exc, (CliInputError, ClarificationRequired)):
         return EXIT_INPUT
     if isinstance(exc, FileNotFoundError):
         return EXIT_MISSING_SEED
@@ -177,6 +194,8 @@ def main(argv: list[str] | None = None) -> int:
         args = parser.parse_args(argv)
         try:
             spec = build_spec(args)
+        except ClarificationRequired:
+            raise
         except (TypeError, ValueError) as exc:
             raise CliInputError(str(exc)) from exc
         if args.dry_run:

@@ -3,6 +3,8 @@
 AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成三个固定场景的
 端到端 HYSYS 适配器：甲苯歧化、甲烷蒸汽重整和水煤浆蒸汽气化。
 
+[查看项目进度、已完成任务和后续规划](PROJECT_PROGRESS.md)
+
 ## 已完成场景
 
 ### 甲苯歧化
@@ -49,6 +51,18 @@ AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成三个
 & '..\.venv\Scripts\python.exe' '.\run_case.py' methane --outlet-temperature-c 710
 & '..\.venv\Scripts\python.exe' '.\run_case.py' coal
 ```
+
+自然语言入口采用本地确定性规则，不依赖网络或大模型：
+
+```powershell
+& '..\.venv\Scripts\python.exe' '.\run_case.py' --text '甲苯歧化，进料流量 10000 kg/h，进料温度 380°C，压力 25 bar，转化率 50%' --dry-run --output-format pretty
+& '..\.venv\Scripts\python.exe' '.\run_case.py' --text '甲烷蒸汽重整，S/C 2.7，出口温度 710°C' --dry-run --output-format pretty
+& '..\.venv\Scripts\python.exe' '.\run_case.py' --text '水煤浆气化，煤浆浓度 62 wt%，出口温度 1400°C' --dry-run --output-format pretty
+```
+
+`--text` 会先完成场景分类、单位检查和参数提取，再构造与子命令相同的 `CaseSpec`。
+未明确写出的参数采用场景默认值；已经写出但缺少单位、数值冲突或同时出现多个场景时，CLI
+返回 `clarification_required` 和具体问题，退出码为2，并且不会进入 Router 或启动 HYSYS。
 
 只解析并校验参数、不导入适配器且不启动 HYSYS：
 
@@ -138,10 +152,14 @@ Git 仓库本身不包含 HYSYS 案例文件。
 - [甲苯场景验证记录](docs/toluene_validation.md)
 - [甲烷重整验证记录](docs/methane_reforming_validation.md)
 - [水煤浆气化验证记录](docs/coal_gasification_validation.md)
+- [统一 CaseSpec / CaseResult CLI 验证记录](docs/unified_cli_validation.md)
+- [自然语言 CLI 离线验证记录](docs/natural_language_cli.md)
 
 ## 当前边界
 
 - 二甲苯异构体选择性未由题目给出，当前以 p-Xylene 表示总二甲苯；
 - 水煤浆气化已通过冷启动和连续3次重复性验证；1400°C Gibbs 外推结果仍需工程复核；
-- 自然语言分类和 JSON CaseSpec 文件输入尚未整合；
+- 统一 CLI 已完成三个场景的独立冷启动、UTF-8 JSON 和 stdout/stderr 分离验收；
+- 自然语言分类与参数提取已完成离线实现，尚待授权进行三场景实机验收；
+- JSON CaseSpec 文件输入尚未整合，并按当前计划排在自然语言入口之后；
 - Live Demo 前仍需完整彩排并保留终端与 HYSYS 结果截图。

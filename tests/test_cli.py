@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -28,6 +29,28 @@ def run_cli(*arguments: str) -> subprocess.CompletedProcess[str]:
 
 
 class CliDryRunTests(unittest.TestCase):
+    def test_natural_language_dry_run_builds_case_spec(self) -> None:
+        completed = run_cli(
+            "--text",
+            "甲苯歧化，进料流量 12000 kg/h，压力 26 bar，转化率 60%",
+            "--dry-run",
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["status"], "dry_run")
+        self.assertEqual(payload["case_spec"]["inputs"]["conversion"], 0.6)
+
+    def test_natural_language_clarification_never_executes_adapter(self) -> None:
+        with patch.object(run_case, "execute_case") as execute:
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = run_case.main(["--text", "运行甲苯歧化，压力 25"])
+        self.assertEqual(exit_code, 2)
+        execute.assert_not_called()
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["status"], "clarification_required")
+        self.assertTrue(payload["questions"])
+
     def test_all_scenarios_dry_run_without_adapter_import(self) -> None:
         expected = {
             "toluene": "toluene_disproportionation",
