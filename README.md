@@ -42,6 +42,33 @@ AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成三个
 
 在 `Sui` 仓库目录执行。
 
+推荐使用统一入口：
+
+```powershell
+& '..\.venv\Scripts\python.exe' '.\run_case.py' toluene --conversion 0.50
+& '..\.venv\Scripts\python.exe' '.\run_case.py' methane --outlet-temperature-c 710
+& '..\.venv\Scripts\python.exe' '.\run_case.py' coal
+```
+
+只解析并校验参数、不导入适配器且不启动 HYSYS：
+
+```powershell
+& '..\.venv\Scripts\python.exe' '.\run_case.py' toluene --dry-run --output-format pretty
+& '..\.venv\Scripts\python.exe' '.\run_case.py' methane --outlet-temperature-c 710 --dry-run
+& '..\.venv\Scripts\python.exe' '.\run_case.py' coal --dry-run
+```
+
+统一入口的 stdout 只包含一份 CaseResult JSON；适配器过程日志和警告转发到 stderr。退出码约定为：
+
+- `0`：成功；
+- `2`：CLI 或 CaseSpec 输入无效；
+- `3`：本地 seed 缺失；
+- `4`：原生适配器或 HYSYS/COM 执行失败；
+- `5`：原生结果无法标准化为 CaseResult；
+- `1`：其他未分类异常。
+
+也可以直接运行单个适配器：
+
 甲苯默认50%转化率：
 
 ```powershell
@@ -116,5 +143,5 @@ Git 仓库本身不包含 HYSYS 案例文件。
 
 - 二甲苯异构体选择性未由题目给出，当前以 p-Xylene 表示总二甲苯；
 - 水煤浆气化已通过冷启动和连续3次重复性验证；1400°C Gibbs 外推结果仍需工程复核；
-- 自然语言分类、统一 CaseSpec/Result 路由和最终 CLI 尚未整合；
+- 自然语言分类和 JSON CaseSpec 文件输入尚未整合；
 - Live Demo 前仍需完整彩排并保留终端与 HYSYS 结果截图。
