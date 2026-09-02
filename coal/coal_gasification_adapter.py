@@ -144,6 +144,44 @@ def assert_close(label: str, actual: float, expected: float, tolerance: float) -
         )
 
 
+def assess_thermodynamic_validity(
+    outlet_temperature_c: float,
+    component_gibbs_tmax_c: dict[str, float],
+) -> dict[str, Any]:
+    if set(component_gibbs_tmax_c) != set(COMPONENT_NAMES):
+        raise RuntimeError(
+            "Gibbs temperature-range metadata does not cover every component: "
+            f"{component_gibbs_tmax_c}"
+        )
+    if not all(math.isfinite(value) for value in component_gibbs_tmax_c.values()):
+        raise RuntimeError(
+            f"Gibbs temperature-range metadata is non-finite: {component_gibbs_tmax_c}"
+        )
+
+    limiting_temperature_c = min(component_gibbs_tmax_c.values())
+    extrapolation_c = max(outlet_temperature_c - limiting_temperature_c, 0.0)
+    within_reported_range = extrapolation_c == 0.0
+    warnings: list[str] = []
+    if not within_reported_range:
+        warnings.append(
+            "Requested Gibbs-reactor outlet temperature exceeds the component "
+            f"Gibbs-data range by {extrapolation_c:.2f} C "
+            f"(outlet={outlet_temperature_c:.2f} C, "
+            f"limiting Tmax={limiting_temperature_c:.2f} C). HYSYS may return a "
+            "mathematically converged extrapolation that is not physically reliable."
+        )
+
+    return {
+        "engineering_validation_status": "not_independently_validated",
+        "within_reported_component_gibbs_range": within_reported_range,
+        "requested_outlet_temperature_c": outlet_temperature_c,
+        "limiting_gibbs_tmax_c": limiting_temperature_c,
+        "temperature_extrapolation_c": extrapolation_c,
+        "component_gibbs_tmax_c": dict(component_gibbs_tmax_c),
+        "warnings": warnings,
+    }
+
+
 def get_model_objects(case: Any) -> dict[str, Any]:
     basis = case.BasisManager
     component_list = basis.ComponentLists.Item(COMPONENT_LIST_NAME)
@@ -162,6 +200,15 @@ def get_model_objects(case: Any) -> dict[str, Any]:
     if str(fluid_package.PropertyPackageName) != "Peng-Robinson":
         raise RuntimeError(
             f"Property package mismatch: actual={fluid_package.PropertyPackageName!r}"
+        )
+
+    component_gibbs_tmax_c = {
+        name: float(component_list.Components.Item(name).GibbsTmax.GetValue("C"))
+        for name in COMPONENT_NAMES
+    }
+    if not all(math.isfinite(value) for value in component_gibbs_tmax_c.values()):
+        raise RuntimeError(
+            f"Invalid component Gibbs Tmax metadata: {component_gibbs_tmax_c}"
         )
 
     flowsheet = case.Flowsheet
@@ -201,6 +248,7 @@ def get_model_objects(case: Any) -> dict[str, Any]:
         "vapour_product": vapour_product,
         "bottom_product": bottom_product,
         "energy_stream": energy_stream,
+        "component_gibbs_tmax_c": component_gibbs_tmax_c,
     }
 
 
@@ -391,6 +439,9 @@ def configure_and_read_once(
     carbon_conversion_percent = (feed_coal_carbon - residual_carbon) / feed_coal_carbon * 100.0
     hydrogen_molar_fraction = vapour_result["component_molar_fraction"]["Hydrogen"]
     heat_duty_kw = float(objects["energy_stream"].HeatFlow.GetValue("kW"))
+    thermodynamic_validity = assess_thermodynamic_validity(
+        outlet_temperature_c, objects["component_gibbs_tmax_c"]
+    )
     metrics = {
         "co_yield_percent": co_yield_percent,
         "carbon_conversion_percent": carbon_conversion_percent,
@@ -402,6 +453,9 @@ def configure_and_read_once(
     for label in ("co_yield_percent", "carbon_conversion_percent"):
         if not -BALANCE_TOLERANCE_PERCENT <= metrics[label] <= 100.0 + BALANCE_TOLERANCE_PERCENT:
             raise RuntimeError(f"{label} is outside the physical range: {metrics[label]}")
+
+    for warning in thermodynamic_validity["warnings"]:
+        print("THERMODYNAMIC_VALIDITY_WARNING:", warning)
 
     print("SOLVED_OK")
     return {
@@ -428,6 +482,9 @@ def configure_and_read_once(
             "total_mass_flow_kg_h": total_product_mass,
         },
         **metrics,
+        "thermodynamic_validity": thermodynamic_validity,
+        "engineering_validated": False,
+        "warnings": thermodynamic_validity["warnings"],
         "mass_balance_error_percent": mass_balance_error_percent,
         "element_balance_error_percent": element_balance_error_percent,
         "assumptions": [
@@ -435,7 +492,8 @@ def configure_and_read_once(
             "The ambiguous 80000 Nm3/h slurry rate is replaced by a 1000 kg/h mass basis",
             "No oxygen is fed; this is a steam-gasification approximation",
             "External heat maintains the specified 1400 C reactor outlet",
-            "Equilibrium results require engineering review of phase settings and solid carbon",
+            "Carbon is a valid solid component and leaves in the non-vapour product",
+            "Mathematical convergence does not imply high-temperature engineering validity",
         ],
     }
 
