@@ -20,6 +20,11 @@ from core.natural_language import ClarificationRequired, parse_text_request
 ROOT = Path(__file__).resolve().parent
 RUN_CASE = ROOT / "run_case.py"
 MAX_MESSAGE_CHARS = 12_000
+TEMPLATE_NAMES = {
+    "toluene_disproportionation": "甲苯歧化（Conversion Reactor）",
+    "methane_steam_reforming": "甲烷蒸汽重整（Equilibrium Reactor）",
+    "coal_slurry_gasification": "水煤浆气化（Gibbs Reactor）",
+}
 
 
 class ChatServiceError(RuntimeError):
@@ -321,6 +326,13 @@ class ChatService:
                 self._sessions.pop(next(iter(self._sessions)))
             self._sessions[conversation_id] = (request_text, result)
 
+    @staticmethod
+    def _template(scenario: Any) -> dict[str, str] | None:
+        scenario_id = getattr(scenario, "value", scenario)
+        if not isinstance(scenario_id, str) or scenario_id not in TEMPLATE_NAMES:
+            return None
+        return {"id": scenario_id, "name": TEMPLATE_NAMES[scenario_id]}
+
     def handle(
         self,
         message: Any,
@@ -342,14 +354,16 @@ class ChatService:
         # A complete standalone request is authoritative. The model is only
         # needed when the local parser confirms that this turn depends on context.
         standalone_request = True
+        parsed_request = None
         try:
-            parse_text_request(message)
+            parsed_request = parse_text_request(message)
         except (ClarificationRequired, ValueError):
             standalone_request = False
         if context is not None and self.model is not None and not standalone_request:
             try:
                 decision = self.model.resolve_followup(message, context[0], context[1])
                 if decision["action"] == "answer":
+                    selected_template = self._template(context[1].get("scenario"))
                     return {
                         "ok": True,
                         "answer": decision["answer"],
@@ -360,15 +374,23 @@ class ChatService:
                         "logs": "",
                         "simulation_executed": False,
                         "conversation_id": conversation_id,
+                        "selected_template": selected_template,
                     }
                 execution_text = decision["standalone_request"]
                 interpreted_from_context = execution_text != message
+                try:
+                    parsed_request = parse_text_request(execution_text)
+                except (ClarificationRequired, ValueError):
+                    parsed_request = None
             except ChatServiceError as exc:
                 # A routing outage must not prevent a complete standalone request.
                 execution_text = message
                 routing_warning = f"{exc}；本轮已按独立请求处理。"
 
         exit_code, payload, logs = self.runner(execution_text, dry_run)
+        selected_template = self._template(
+            getattr(parsed_request, "scenario", None) or payload.get("scenario")
+        )
         answer = deterministic_answer(payload, dry_run)
         model_warning = routing_warning
         if exit_code == 0 and not dry_run and self.model is not None:
@@ -394,4 +416,5 @@ class ChatService:
             "simulation_executed": not dry_run and exit_code == 0,
             "interpreted_request": execution_text if interpreted_from_context else None,
             "conversation_id": conversation_id,
+            "selected_template": selected_template,
         }

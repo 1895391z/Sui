@@ -67,6 +67,7 @@ summary { cursor: pointer; padding: 8px 12px; color: var(--muted); font-size: 12
 pre { margin: 0; padding: 14px; border-top: 1px solid var(--line); overflow: auto; max-height: 390px; font: 12px/1.6 Consolas, monospace; color: #b7d9cd; }
 .warning { color: #eacb83; font-size: 12px; margin-top: 8px; }
 .interpreted { color: #8bcfb5; font-size: 12px; margin-top: 8px; padding-left: 10px; border-left: 2px solid #397d66; }
+.template-badge { display: inline-block; color: #adf1d6; background: rgba(47, 191, 138, .12); border: 1px solid rgba(89, 227, 173, .2); border-radius: 999px; padding: 3px 9px; font-size: 11px; margin: 2px 0 9px; }
 .typing { display: inline-flex; gap: 5px; padding-top: 10px; }
 .typing i { width: 7px; height: 7px; background: var(--green); border-radius: 50%; animation: pulse 1s infinite alternate; }
 .typing i:nth-child(2) { animation-delay: .18s; }.typing i:nth-child(3) { animation-delay: .36s; }

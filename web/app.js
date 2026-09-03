@@ -16,6 +16,7 @@ function appendMessage(role, text, data = null) {
   article.className = `message ${role}`;
   const avatar = role === 'user' ? '我' : 'AI';
   let extras = '';
+  if (data?.selected_template) extras += `<div class="template-badge">已匹配模板 · ${escapeHtml(data.selected_template.name)}</div>`;
   if (data?.model_warning) extras += `<div class="warning">${escapeHtml(data.model_warning)}</div>`;
   if (data?.interpreted_request) extras += `<div class="interpreted">已结合上一轮理解为：${escapeHtml(data.interpreted_request)}</div>`;
   if (data?.result) {
@@ -74,7 +75,8 @@ document.querySelectorAll('[data-prompt]').forEach(button => button.addEventList
 
 fetch('/api/health').then(r => r.json()).then(data => {
   health.classList.add('online');
-  healthText.textContent = data.model_enabled ? `已连接 · ${data.model}` : '本地模式 · 未配置大模型';
+  const mode = data.model_enabled ? `已连接 · ${data.model}` : '本地模式 · 未配置大模型';
+  healthText.textContent = `${mode} · ${data.version || ''}`;
 }).catch(() => {
   health.classList.add('offline'); healthText.textContent = '服务未连接';
 });

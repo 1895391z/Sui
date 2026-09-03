@@ -39,6 +39,7 @@ class ChatServiceTests(unittest.TestCase):
         self.assertTrue(response["ok"])
         self.assertIn("参数校验通过", response["answer"])
         self.assertFalse(response["model_used"])
+        self.assertEqual(response["selected_template"]["name"], "甲苯歧化（Conversion Reactor）")
 
     def test_clarification_is_returned_as_normal_chat_response(self) -> None:
         service = ChatService(
@@ -162,6 +163,10 @@ class ChatServiceTests(unittest.TestCase):
         )
         service.handle(full_request, conversation_id="same-page")
         self.assertEqual(calls[-1], full_request)
+        self.assertEqual(
+            service.handle(full_request, conversation_id="same-page")["selected_template"]["id"],
+            "toluene_disproportionation",
+        )
 
 
 if __name__ == "__main__":
