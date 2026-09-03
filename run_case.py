@@ -20,13 +20,14 @@ from core.models import (
     SCHEMA_VERSION,
     CaseSpec,
     CoalInputs,
+    ComparisonPlan,
     MethaneInputs,
     Scenario,
     TolueneInputs,
     XyleneSplit,
 )
 from core.service import execute_case
-from core.natural_language import ClarificationRequired, parse_text_to_spec
+from core.natural_language import ClarificationRequired, parse_text_request
 
 
 EXIT_OK = 0
@@ -134,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_spec(args: argparse.Namespace) -> CaseSpec:
+def build_spec(args: argparse.Namespace) -> CaseSpec | ComparisonPlan:
     source_count = sum(
         source is not None
         for source in (args.text, args.case_spec, args.command)
@@ -145,7 +146,7 @@ def build_spec(args: argparse.Namespace) -> CaseSpec:
             "or a scenario subcommand"
         )
     if args.text is not None:
-        return parse_text_to_spec(args.text)
+        return parse_text_request(args.text)
     if args.case_spec is not None:
         return load_case_spec(args.case_spec)
     if args.command == "toluene":
@@ -217,7 +218,7 @@ def emit_payload(payload: dict[str, Any], args: argparse.Namespace) -> None:
 def error_payload(
     args: argparse.Namespace,
     exc: Exception,
-    spec: CaseSpec | None = None,
+    request: CaseSpec | ComparisonPlan | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -227,8 +228,8 @@ def error_payload(
             else "failed"
         ),
         "scenario": (
-            spec.scenario.value
-            if spec is not None
+            request.scenario.value
+            if request is not None
             else getattr(args, "command", None)
         ),
         "error": {"type": type(exc).__name__, "message": str(exc)},
@@ -254,25 +255,37 @@ def main(argv: list[str] | None = None) -> int:
     configure_standard_streams()
     parser = build_parser()
     args: argparse.Namespace | None = None
-    spec: CaseSpec | None = None
+    request: CaseSpec | ComparisonPlan | None = None
     try:
         args = parser.parse_args(argv)
         try:
-            spec = build_spec(args)
+            request = build_spec(args)
         except ClarificationRequired:
             raise
         except (TypeError, ValueError) as exc:
             raise CliInputError(str(exc)) from exc
         if args.dry_run:
+            key = (
+                "comparison_plan"
+                if isinstance(request, ComparisonPlan)
+                else "case_spec"
+            )
             emit_payload(
                 {
                     "schema_version": SCHEMA_VERSION,
                     "status": "dry_run",
-                    "case_spec": spec.to_dict(),
+                    key: request.to_dict(),
                 },
                 args,
             )
             return EXIT_OK
+
+        if isinstance(request, ComparisonPlan):
+            raise CliInputError(
+                "ComparisonPlan currently supports --dry-run only; "
+                "review the sequential cases before live execution"
+            )
+        spec = request
 
         adapter_output = io.StringIO()
         try:
@@ -301,7 +314,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(
                 serialize_payload(
-                    error_payload(args, exc, spec),
+                    error_payload(args, exc, request),
                     args.output_format,
                 )
             )

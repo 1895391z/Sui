@@ -222,6 +222,56 @@ class CaseSpec:
 
 
 @dataclass(frozen=True)
+class ComparisonPlan:
+    """A dry-run-only plan for sequentially comparing fixed-scenario cases."""
+
+    scenario: Scenario
+    case_specs: tuple[CaseSpec, ...]
+    comparison_field: str
+    execution_mode: str = "sequential"
+    assumptions: tuple[str, ...] = ()
+    schema_version: str = SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema_version != SCHEMA_VERSION:
+            raise ValueError(
+                f"Unsupported ComparisonPlan schema_version={self.schema_version!r}; "
+                f"expected={SCHEMA_VERSION!r}"
+            )
+        if self.scenario is not Scenario.METHANE:
+            raise ValueError("ComparisonPlan currently supports only methane reforming")
+        if self.comparison_field != "outlet_temperature_c":
+            raise ValueError(
+                "ComparisonPlan currently supports only outlet_temperature_c"
+            )
+        if self.execution_mode != "sequential":
+            raise ValueError("ComparisonPlan execution_mode must be 'sequential'")
+        if len(self.case_specs) < 2:
+            raise ValueError("ComparisonPlan requires at least two CaseSpecs")
+        if not all(isinstance(case, CaseSpec) for case in self.case_specs):
+            raise TypeError("ComparisonPlan case_specs must contain only CaseSpecs")
+        if any(case.scenario is not self.scenario for case in self.case_specs):
+            raise ValueError("Every ComparisonPlan CaseSpec must match its scenario")
+        if not all(isinstance(item, str) for item in self.assumptions):
+            raise TypeError("ComparisonPlan assumptions must contain only strings")
+        values = [
+            getattr(case.inputs, self.comparison_field) for case in self.case_specs
+        ]
+        if len(set(values)) != len(values):
+            raise ValueError("ComparisonPlan values must be distinct")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "scenario": self.scenario.value,
+            "execution_mode": self.execution_mode,
+            "comparison_field": self.comparison_field,
+            "case_specs": [case.to_dict() for case in self.case_specs],
+            "assumptions": list(self.assumptions),
+        }
+
+
+@dataclass(frozen=True)
 class ReactorResult:
     type: str
     name: str

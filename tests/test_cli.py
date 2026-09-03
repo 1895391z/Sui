@@ -12,6 +12,11 @@ from unittest.mock import patch
 
 import run_case
 from core.errors import HysysConnectionError
+from tests.test_natural_language import (
+    COAL_ASSESSMENT_TEXT,
+    METHANE_ASSESSMENT_TEXT,
+    TOLUENE_ASSESSMENT_TEXT,
+)
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
@@ -30,6 +35,57 @@ def run_cli(*arguments: str) -> subprocess.CompletedProcess[str]:
 
 
 class CliDryRunTests(unittest.TestCase):
+    def test_assessment_toluene_text_dry_run(self) -> None:
+        completed = run_cli(
+            "--text", TOLUENE_ASSESSMENT_TEXT, "--dry-run", "--output-format", "pretty"
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["case_spec"]["inputs"]["pressure_bar"], 25.0)
+
+    def test_assessment_methane_comparison_is_dry_run_only(self) -> None:
+        completed = run_cli(
+            "--text", METHANE_ASSESSMENT_TEXT, "--dry-run", "--output-format", "pretty"
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["status"], "dry_run")
+        plan = payload["comparison_plan"]
+        self.assertEqual(plan["execution_mode"], "sequential")
+        self.assertEqual(
+            [item["inputs"]["outlet_temperature_c"] for item in plan["case_specs"]],
+            [710.0, 600.0],
+        )
+
+        with (
+            patch.object(run_case, "execute_case") as execute,
+            patch.object(run_case, "managed_hysys") as manager,
+        ):
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = run_case.main(["--text", METHANE_ASSESSMENT_TEXT])
+        self.assertEqual(exit_code, 2)
+        execute.assert_not_called()
+        manager.assert_not_called()
+        self.assertEqual(json.loads(stdout.getvalue())["status"], "failed")
+
+    def test_assessment_coal_clarification_never_starts_hysys(self) -> None:
+        with (
+            patch.object(run_case, "execute_case") as execute,
+            patch.object(run_case, "managed_hysys") as manager,
+        ):
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                exit_code = run_case.main(
+                    ["--text", COAL_ASSESSMENT_TEXT, "--dry-run"]
+                )
+        self.assertEqual(exit_code, 2)
+        execute.assert_not_called()
+        manager.assert_not_called()
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["status"], "clarification_required")
+        self.assertIn("Nm3/h", "".join(payload["questions"]))
+
     def write_case_spec(self, directory: str, spec: dict[str, object]) -> Path:
         path = Path(directory) / "case_spec.json"
         path.write_text(json.dumps(spec), encoding="utf-8")

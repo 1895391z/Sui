@@ -15,6 +15,19 @@
 Toluene 还支持 `o/m/p 20/30/50` 或 `邻/间/对二甲苯比例 20/30/50`，比例会归一化后写入
 CaseSpec；未指定时采用等比例假设。
 
+原题兼容性加固进一步支持：
+
+- `2.5 MPa` 自动归一化为 `25 bar`；
+- `甲烷和水蒸气（摩尔比 1:2.7）` 按 CH4:H2O 解释为蒸汽碳比2.7；
+- `出口气温度`、中文 `1400度` 和 `水煤浆进料浓度62wt%`；
+- Methane 多出口温度生成只读、顺序执行的 `ComparisonPlan`；
+- `Nm3/h`/`Nm³/h` 作为浆料流量时明确要求澄清；
+- 对带工程单位但未被解析器消费的显式数值执行失败关闭检查，禁止默认值掩盖输入。
+
+`ComparisonPlan` 当前仅支持 `--dry-run`。不带 `--dry-run` 提交比较计划时返回退出码2，并在
+连接管理器之前停止，不会启动 HYSYS。计划中的原题默认100 kgmol/h仅是可线性放大的计算基准，
+不宣称已经证明符合特定工厂的年处理量。
+
 统一 CLI 后续增加了延迟加载的 HYSYS 连接管理器。live run 使用“普通启动可执行文件、等待
 活动 COM 对象、执行案例、仅清理自有进程”的路径。该内置路径已完成 Toluene 实机冷启动，
 Methane 600°C 和 Coal 1400°C 工况也已完成实机冷启动。
@@ -70,8 +83,12 @@ Methane 600°C 和 Coal 1400°C 工况也已完成实机冷启动。
 
 - 未给出的参数使用 `CaseSpec` 中公开的场景默认值；
 - 已写出的温度、压力和流量必须带单位；
+- 压力支持 bar 和 MPa，并统一保存为 bar；
 - 百分数大于1时必须带 `%` 或 `wt%`；
 - 同一字段包含不同数值时要求澄清；
+- Methane 的多个出口温度是显式比较请求，在 dry-run 中生成顺序计划；
+- 无法作为浆料质量流量解释的 Nm3/h/Nm³/h 必须要求澄清；
+- 任何带工程单位但未被消费的显式数值都不能被默认值掩盖；
 - 同时匹配多个场景或无法识别场景时要求澄清；
 - 澄清响应为 JSON，`status=clarification_required`、退出码为2；
 - 澄清发生在 `execute_case()` 之前，因此不会导入 COM 适配器或启动 HYSYS。
@@ -84,7 +101,8 @@ Methane 600°C 和 Coal 1400°C 工况也已完成实机冷启动。
 & '..\.venv\Scripts\python.exe' '.\run_case.py' --text '甲烷蒸汽重整，出口温度 600°C 和 710°C' --dry-run --output-format pretty
 ```
 
-第二条应返回标准 `dry_run` CaseSpec；第三条应返回 `clarification_required`，且不启动 HYSYS。
+第二条应返回标准 `dry_run` CaseSpec；第三条应返回包含两个 CaseSpec 的顺序
+`ComparisonPlan`，且不启动 HYSYS。
 
 ## 尚未执行
 

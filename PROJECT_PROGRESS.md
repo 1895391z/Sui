@@ -35,6 +35,9 @@
 - Coal 自然语言1200°C边界已通过；外推幅度降低200°C，但组成几乎不变，继续标记为受限。
 - 严格 JSON CaseSpec 文件输入已完成离线实现，复用现有契约并与其他输入源互斥。
 - JSON CaseSpec 已通过 Toluene dry-run 与 live run，确认复用同一执行链且 seed 不变。
+- 原题自然语言兼容层已离线支持 MPa 换算、CH4:H2O 比例、扩展温度/浓度措辞和未消费参数保护。
+- Methane 双出口温度可生成仅供 dry-run 审阅的顺序 ComparisonPlan；尚未授权批量 live run。
+- 原题 Coal 的 80000 Nm3/h 会在启动 HYSYS 前明确澄清，不再由默认浆料流量掩盖。
 
 ## 当前边界
 
@@ -44,6 +47,7 @@
 - 自然语言入口目前采用确定性规则，三个场景均已完成实机运行验收；
 - 三场景默认工况、参数矩阵和 JSON live run 均已完成；最终演示彩排尚未完成；
 - 可选 LLM 解析尚未实现。
+- ComparisonPlan 当前只生成和校验顺序工况，不执行 live run，也不产生 ComparisonResult。
 
 ## 后续任务规划
 
