@@ -238,7 +238,14 @@ def deterministic_answer(payload: dict[str, Any], dry_run: bool) -> str:
         )
     if status == "failed":
         error = payload.get("error", {})
-        return f"仿真未完成：{error.get('message', '未知错误')}"
+        message = str(error.get("message", "未知错误"))
+        if "HYSYS failed to start" in message or "did not register" in message:
+            return (
+                "HYSYS 启动失败，尚未进入工况求解。系统已经自动重试并清理本次启动的"
+                "残留进程。请先手动打开一次 HYSYS，确认许可证或启动弹窗后关闭，再重新发送；"
+                f"诊断信息：{message}"
+            )
+        return f"仿真未完成：{message}"
     if status == "dry_run":
         plan = payload.get("comparison_plan") or payload.get("case_spec", {})
         scenario = plan.get("scenario", "未知场景")

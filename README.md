@@ -153,6 +153,10 @@ HYSYS_LLM_MODEL=qwen-plus
 
 `--dry-run` 在进入连接管理器之前返回，不导入 pywin32、不启动 HYSYS。
 
+连接管理器会在首次冷启动崩溃或 COM 注册超时时清理本次启动的 HYSYS 进程树，并自动重试一次。
+这用于处理 Aspen HYSYS V15 偶发的 `IFace.dll` 启动失败及遗留 `AspenSplash`；连续两次失败时，
+Web 界面会明确提示检查许可证弹窗、Windows 应用日志和残留启动进程，而不是只报告笼统超时。
+
 也可以直接运行单个适配器：
 
 甲苯默认50%转化率：

@@ -75,7 +75,7 @@ class HysysConnectionTests(unittest.TestCase):
             patch("core.hysys_connection._shutdown_owned_process") as shutdown,
         ):
             with self.assertRaisesRegex(RuntimeError, "adapter failed"):
-                with managed_hysys():
+                with managed_hysys(max_start_attempts=1):
                     raise RuntimeError("adapter failed")
         shutdown.assert_called_once_with(process)
 
@@ -88,12 +88,12 @@ class HysysConnectionTests(unittest.TestCase):
                 return_value=Path("hysys.exe"),
             ),
             patch("core.hysys_connection._launch_hysys", return_value=process),
-            patch("core.hysys_connection._shutdown_owned_process") as shutdown,
+            patch("core.hysys_connection._terminate_failed_startup_tree") as terminate,
         ):
             with self.assertRaisesRegex(HysysConnectionError, "exit_code=41"):
-                with managed_hysys():
+                with managed_hysys(max_start_attempts=1):
                     self.fail("context must not yield after startup failure")
-        shutdown.assert_called_once_with(process)
+        terminate.assert_called_once_with(process)
 
     def test_registration_timeout_is_explicit_and_still_cleaned_up(self) -> None:
         process = FakeProcess()
@@ -104,12 +104,38 @@ class HysysConnectionTests(unittest.TestCase):
                 return_value=Path("hysys.exe"),
             ),
             patch("core.hysys_connection._launch_hysys", return_value=process),
-            patch("core.hysys_connection._shutdown_owned_process") as shutdown,
+            patch("core.hysys_connection._terminate_failed_startup_tree") as terminate,
         ):
             with self.assertRaisesRegex(HysysConnectionError, "within 0 seconds"):
-                with managed_hysys(start_timeout_seconds=0):
+                with managed_hysys(start_timeout_seconds=0, max_start_attempts=1):
                     self.fail("context must not yield after timeout")
-        shutdown.assert_called_once_with(process)
+        terminate.assert_called_once_with(process)
+
+    def test_failed_first_launch_is_cleaned_and_retried(self) -> None:
+        failed = FakeProcess(return_code=41)
+        successful = FakeProcess()
+        successful.pid = 5678
+        with (
+            patch(
+                "core.hysys_connection._get_active_object",
+                side_effect=(None, None, object()),
+            ),
+            patch(
+                "core.hysys_connection._registered_executable",
+                return_value=Path("hysys.exe"),
+            ),
+            patch(
+                "core.hysys_connection._launch_hysys",
+                side_effect=(failed, successful),
+            ),
+            patch("core.hysys_connection._terminate_failed_startup_tree") as terminate,
+            patch("core.hysys_connection._shutdown_owned_process") as shutdown,
+            patch("core.hysys_connection.time.sleep"),
+        ):
+            with managed_hysys() as connection:
+                self.assertEqual(connection.process_id, 5678)
+        terminate.assert_called_once_with(failed)
+        shutdown.assert_called_once_with(successful)
 
 
 if __name__ == "__main__":

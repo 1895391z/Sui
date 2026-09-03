@@ -7,6 +7,4 @@ if (-not (Test-Path -LiteralPath $Python)) {
 }
 
 Set-Location -LiteralPath $ProjectDirectory
-Write-Host "正在启动 HYSYS AI 对话界面…"
 & $Python ".\chat_app.py" @args
-
