@@ -15,6 +15,9 @@ Set-Location .\Sui
 
 浏览器访问 `http://127.0.0.1:8765`。输入工况后默认执行真实 HYSYS 仿真；勾选“仅校验参数”
 可在不启动 HYSYS 的情况下检查场景、参数和单位。所有 live run 串行执行，避免多个 COM 会话竞争。
+聊天服务首次成功启动 HYSYS 后会保留该实例，后续单工况复用同一个 COM 服务，案例本身仍在每轮
+结束时关闭。这样可以避免连续提问时反复冷启动触发 Aspen V15 的 `IFace.dll` 启动故障；关闭
+聊天服务后如不再使用 HYSYS，可从 HYSYS 界面正常退出。
 
 不配置大模型时，界面仍可依靠本地确定性解析器完成仿真并生成结果摘要。若要使用国内大模型解读
 HYSYS 结果，将 `.env.example` 复制为 `.env`，填写 API Key、OpenAI-compatible Base URL 和模型名。

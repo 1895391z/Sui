@@ -22,7 +22,7 @@ from chat_service import (
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "web"
 MAX_BODY_BYTES = 64 * 1024
-APP_VERSION = "2026.09.03.3"
+APP_VERSION = "2026.09.03.4"
 
 
 class AppHandler(BaseHTTPRequestHandler):

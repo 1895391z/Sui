@@ -229,10 +229,14 @@ def managed_hysys(
         break
 
     assert process is not None and app is not None
+    keep_running = os.environ.get("HYSYS_KEEP_RUNNING", "").strip() == "1"
     try:
         yield HysysConnection(started_by_manager=True, process_id=process.pid)
     finally:
         app = None
         gc.collect()
-        _shutdown_owned_process(process)
-        print(f"HYSYS_LAUNCHED_PROCESS_CLOSED: pid={process.pid}")
+        if keep_running and process.poll() is None:
+            print(f"HYSYS_PROCESS_KEPT_FOR_CHAT_REUSE: pid={process.pid}")
+        else:
+            _shutdown_owned_process(process)
+            print(f"HYSYS_LAUNCHED_PROCESS_CLOSED: pid={process.pid}")

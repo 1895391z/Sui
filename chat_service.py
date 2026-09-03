@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from core.models import ComparisonPlan
 from core.natural_language import ClarificationRequired, parse_text_request
 
 
@@ -200,6 +201,14 @@ class SimulationRunner:
         ]
         if dry_run:
             command.append("--dry-run")
+        environment = os.environ.copy()
+        if not dry_run:
+            try:
+                parsed = parse_text_request(text)
+            except (ClarificationRequired, ValueError):
+                parsed = None
+            if parsed is not None and not isinstance(parsed, ComparisonPlan):
+                environment["HYSYS_KEEP_RUNNING"] = "1"
         with self._lock:
             completed = subprocess.run(
                 command,
@@ -210,6 +219,7 @@ class SimulationRunner:
                 errors="replace",
                 timeout=None,
                 check=False,
+                env=environment,
             )
         try:
             payload = json.loads(completed.stdout.strip())

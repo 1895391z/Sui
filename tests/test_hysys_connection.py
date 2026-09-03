@@ -137,6 +137,25 @@ class HysysConnectionTests(unittest.TestCase):
         terminate.assert_called_once_with(failed)
         shutdown.assert_called_once_with(successful)
 
+    def test_chat_mode_keeps_successful_owned_process_for_reuse(self) -> None:
+        process = FakeProcess()
+        with (
+            patch.dict("os.environ", {"HYSYS_KEEP_RUNNING": "1"}, clear=False),
+            patch(
+                "core.hysys_connection._get_active_object",
+                side_effect=(None, object()),
+            ),
+            patch(
+                "core.hysys_connection._registered_executable",
+                return_value=Path("hysys.exe"),
+            ),
+            patch("core.hysys_connection._launch_hysys", return_value=process),
+            patch("core.hysys_connection._shutdown_owned_process") as shutdown,
+        ):
+            with managed_hysys() as connection:
+                self.assertEqual(connection.process_id, 1234)
+        shutdown.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
