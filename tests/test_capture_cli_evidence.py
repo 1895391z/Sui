@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from capture_cli_evidence import capture
+from tools.capture_cli_evidence import capture
 
 
 class CaptureCliEvidenceTests(unittest.TestCase):

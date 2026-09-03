@@ -1,0 +1,1 @@
+"""Coal-slurry gasification adapter."""

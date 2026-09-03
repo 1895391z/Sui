@@ -7,4 +7,4 @@ if (-not (Test-Path -LiteralPath $Python)) {
 }
 
 Set-Location -LiteralPath $ProjectDirectory
-& $Python ".\chat_app.py" @args
+& $Python "-m" "app.chat_app" @args

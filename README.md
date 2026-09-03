@@ -1,273 +1,154 @@
-# Sui
+# HYSYS AI 反应器仿真助手
 
-AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成三个固定场景的
-端到端 HYSYS 适配器：甲苯歧化、甲烷蒸汽重整和水煤浆蒸汽气化。
+这是一个面向 Aspen HYSYS V15 的本地自然语言仿真系统。用户在浏览器中描述工况，系统将请求映射到经过验证的反应器模板，校验参数与工程单位，调用 HYSYS COM 完成求解，并以中文返回结果和完整 JSON。
 
-## Web 对话界面
+## 当前能力
 
-项目提供本地浏览器对话界面。它复用统一 CLI 的参数校验、HYSYS 生命周期管理和结果标准化，
-不会执行大模型生成的代码。启动命令：
+| 场景 | HYSYS反应器 | 主要输出 |
+|---|---|---|
+| 甲苯歧化 | Conversion Reactor | 甲苯转化率、苯及二甲苯产量、流股组成、质量衡算 |
+| 甲烷蒸汽重整 | Equilibrium Reactor | CH4转化率、CO/CO2/H2组成、热负荷、元素衡算；支持温度比较 |
+| 水煤浆气化 | Gibbs Reactor | CO收率、碳转化率、合成气组成、热负荷、元素衡算 |
 
-```powershell
-Set-Location .\Sui
-.\start_chat.ps1
+系统支持：
+
+- 中文或英文自然语言输入；
+- bar/MPa压力换算、百分数和必要单位检查；
+- OpenAI-compatible国内模型生成中文结果说明；
+- 同一浏览器页面内的多轮追问和工况修改；
+- 参数预检，不启动HYSYS；
+- HYSYS启动失败清理、有限重试，以及单工况之间复用已启动实例；
+- 标准化`CaseSpec`、`CaseResult`和`ComparisonResult` JSON；
+- seed完整性校验和运行证据采集。
+
+当前版本使用三个已经配置并验证的HYSYS seed案例。每次运行复制seed到`cases/runtime`，在副本中写入工况、求解并读取结果；目前尚未从空白Case动态创建完整流程图。
+
+## 目录结构
+
+```text
+Sui/
+├─ app/                    Web服务、对话编排和前端资源
+│  ├─ chat_app.py
+│  ├─ chat_service.py
+│  └─ web/
+├─ core/                   数据契约、自然语言解析、路由和结果标准化
+├─ adapters/               三个经过验证的HYSYS场景适配器
+│  ├─ toluene/
+│  ├─ methane/
+│  └─ coal/
+├─ cases/
+│  ├─ constant/            只读HYSYS seed
+│  ├─ runtime/             可再生成的运行副本
+│  └─ seed_manifest.json
+├─ tools/                  seed校验和验收证据工具
+├─ tests/                  离线自动化测试
+├─ run_case.py             统一CLI入口
+├─ start_chat.ps1          Web界面启动入口
+├─ README.md
+├─ PROJECT_PROGRESS.md
+└─ 项目报告.md
 ```
 
-浏览器访问 `http://127.0.0.1:8765`。输入工况后默认执行真实 HYSYS 仿真；勾选“仅校验参数”
-可在不启动 HYSYS 的情况下检查场景、参数和单位。所有 live run 串行执行，避免多个 COM 会话竞争。
-聊天服务首次成功启动 HYSYS 后会保留该实例，后续单工况复用同一个 COM 服务，案例本身仍在每轮
-结束时关闭。这样可以避免连续提问时反复冷启动触发 Aspen V15 的 `IFace.dll` 启动故障；关闭
-聊天服务后如不再使用 HYSYS，可从 HYSYS 界面正常退出。
+## 环境要求
 
-不配置大模型时，界面仍可依靠本地确定性解析器完成仿真并生成结果摘要。若要使用国内大模型解读
-HYSYS 结果，将 `.env.example` 复制为 `.env`，填写 API Key、OpenAI-compatible Base URL 和模型名。
-密钥只保存在本机服务端，不会发送给浏览器。DeepSeek 示例：
-
-```dotenv
-HYSYS_LLM_API_KEY=你的密钥
-HYSYS_LLM_BASE_URL=https://api.deepseek.com
-HYSYS_LLM_MODEL=deepseek-v4-flash
-```
-
-也可接入提供 OpenAI-compatible `/chat/completions` 接口的其他服务，例如阿里云百炼：
-
-```dotenv
-HYSYS_LLM_API_KEY=你的百炼密钥
-HYSYS_LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-HYSYS_LLM_MODEL=qwen-plus
-```
-
-大模型负责依据标准 JSON 生成中文总结，并在多轮对话中区分“修改工况”和“解释结果”；工程单位
-检查、参数边界和 HYSYS 执行仍由本地受控代码负责。远程模型不可用时会自动降级为本地摘要，
-不影响已经完成的仿真。
-
-配置大模型后，浏览器页面还支持当前页面内的多轮追问。例如先运行710°C甲烷重整，再输入
-“改成600°C再算”，模型会把它整理成继承上一工况其余参数的完整请求，随后仍由本地解析器重新
-校验后才允许启动 HYSYS；输入“为什么转化率提高”则只解释上一轮 JSON，不会重复启动仿真。
-会话上下文只保存在当前服务进程内，重启服务后自动清除。
-
-[查看项目进度、已完成任务和后续规划](PROJECT_PROGRESS.md)
-
-## 已完成场景
-
-### 甲苯歧化
-
-- 反应器：Conversion Reactor；
-- 进料：纯甲苯，默认10000 kg/h、380°C、25 bar；
-- 反应：`2 Toluene -> Benzene + p-Xylene`；
-- 转化率接口使用0到1的比例；
-- HYSYS 以 p-Xylene 代表总二甲苯；CaseResult 将其按显式选择性假设推导为 o/m/p 分布，
-  默认等比例，并标记 `derived_from_assumed_selectivity=true`。
-
-### 甲烷蒸汽重整
-
-- 反应器：Equilibrium Reactor；
-- 进料：默认总计100 kgmol/h、520°C、13.5 bar；
-- H2O/CH4 摩尔比：2.7；
-- 对比出口600°C和710°C；
-- 输出甲烷转化率、热负荷、质量衡算及 C/H/O 元素衡算。
-
-### 水煤浆蒸汽气化
-
-- 反应器：Gibbs Reactor；
-- 进料质量基准：默认1000 kg/h，其中煤按纯碳近似，占62 wt%；
-- 入口：40°C、40 bar；出口：1400°C；
-- 无氧进料，以外部热负荷维持指定出口温度；
-- 输出 CO 收率、碳转化率、热负荷、质量衡算及 C/H/O 元素衡算。
-- 1400°C超过当前组件 Gibbs 数据标记上限，数学收敛结果尚未通过工程热力学验证。
-
-## 环境
-
-- Windows；
+- Windows 10/11；
 - Aspen HYSYS V15；
 - Python 3.12；
 - `pywin32`；
 - COM ProgID：`HYSYS.Application`。
 
-## 运行
-
-在 `Sui` 仓库目录执行。
-
-推荐使用统一入口：
+仓库当前使用上级目录中的`.venv`：
 
 ```powershell
-& '..\.venv\Scripts\python.exe' '.\run_case.py' toluene --conversion 0.50
-& '..\.venv\Scripts\python.exe' '.\run_case.py' methane --outlet-temperature-c 710
-& '..\.venv\Scripts\python.exe' '.\run_case.py' coal
+& '..\.venv\Scripts\python.exe' -m pip install pywin32
 ```
 
-指定 Toluene 的假设 o/m/p 分布（输入会归一化）：
+## 启动Web界面
 
 ```powershell
-& '..\.venv\Scripts\python.exe' '.\run_case.py' toluene --xylene-split 20,30,50 --dry-run --output-format pretty
+Set-Location C:\Users\Administrator\Desktop\procagent\project\Sui
+.\start_chat.ps1
 ```
 
-自然语言入口采用本地确定性规则，不依赖网络或大模型：
+浏览器访问`http://127.0.0.1:8765`。输入完整工况后默认执行真实仿真；勾选“仅校验参数”时只生成并显示CaseSpec，不启动HYSYS。
+
+聊天模式第一次成功启动HYSYS后会保留程序实例，后续单工况复用COM服务，避免连续冷启动导致Aspen V15的`IFace.dll`故障。每轮打开的Simulation Case仍会关闭。结束使用后，可从HYSYS界面正常退出程序。
+
+## 配置国内大模型
 
 ```powershell
-& '..\.venv\Scripts\python.exe' '.\run_case.py' --text '甲苯歧化，进料流量 10000 kg/h，进料温度 380°C，压力 25 bar，转化率 50%' --dry-run --output-format pretty
-& '..\.venv\Scripts\python.exe' '.\run_case.py' --text '甲烷蒸汽重整，S/C 2.7，出口温度 710°C' --dry-run --output-format pretty
-& '..\.venv\Scripts\python.exe' '.\run_case.py' --text '水煤浆气化，煤浆浓度 62 wt%，出口温度 1400°C' --dry-run --output-format pretty
+Copy-Item .env.example .env
+notepad .env
 ```
 
-`--text` 会先完成场景分类、单位检查和参数提取，再构造与子命令相同的 `CaseSpec`。
-未明确写出的参数采用场景默认值；已经写出但缺少单位、数值冲突或同时出现多个场景时，CLI
-返回 `clarification_required` 和具体问题，退出码为2，并且不会进入 Router 或启动 HYSYS。
-压力输入支持 `bar` 和 `MPa`，其中 MPa 会统一换算为 bar。原题式 Methane 双出口温度请求在
-`--dry-run` 下返回 `execution_mode=sequential` 的 `ComparisonPlan`；live run 按计划逐个工况
-独立启动和关闭 HYSYS，并返回统一 `ComparisonResult`。`Nm3/h`/`Nm³/h` 不能直接作为水煤浆质量流量，CLI 会要求
-提供 kg/h 或换算基准，绝不会静默使用默认流量。带工程单位但未被消费的显式数值同样要求澄清。
+DeepSeek示例：
 
-从严格 UTF-8 JSON 文件读取完整 CaseSpec：
-
-```powershell
-& '..\.venv\Scripts\python.exe' '.\run_case.py' --case-spec '.\my_case.json' --dry-run --output-format pretty
+```dotenv
+HYSYS_LLM_API_KEY=你的API密钥
+HYSYS_LLM_BASE_URL=https://api.deepseek.com
+HYSYS_LLM_MODEL=deepseek-v4-flash
+HYSYS_LLM_TIMEOUT=60
 ```
 
-`--case-spec`、`--text` 和三个场景子命令是互斥输入源。JSON 根对象、场景 inputs 和嵌套
-`xylene_split` 必须包含完整且准确的字段；缺失字段、未知字段、错误 schema 版本、无效场景、
-文件读取失败或 JSON 语法错误均返回退出码2。格式与完整示例见
-[JSON CaseSpec 输入](docs/json_case_spec.md)。
+阿里云百炼示例：
 
-只解析并校验参数、不导入适配器且不启动 HYSYS：
-
-```powershell
-& '..\.venv\Scripts\python.exe' '.\run_case.py' toluene --dry-run --output-format pretty
-& '..\.venv\Scripts\python.exe' '.\run_case.py' methane --outlet-temperature-c 710 --dry-run
-& '..\.venv\Scripts\python.exe' '.\run_case.py' coal --dry-run
+```dotenv
+HYSYS_LLM_API_KEY=你的API密钥
+HYSYS_LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+HYSYS_LLM_MODEL=qwen-plus
+HYSYS_LLM_TIMEOUT=60
 ```
 
-统一入口的 stdout 只包含一份 CaseResult JSON；适配器过程日志和警告转发到 stderr。退出码约定为：
+API Key只由本地服务读取，不会返回浏览器，`.env`也被Git忽略。大模型负责结果说明和多轮意图判断；场景白名单、单位检查、参数边界和HYSYS执行仍由本地代码控制。模型调用失败时自动降级为本地摘要。
 
-- `0`：成功；
-- `2`：CLI 或 CaseSpec 输入无效；
-- `3`：本地 seed 缺失；
-- `4`：原生适配器或 HYSYS/COM 执行失败；
-- `5`：原生结果无法标准化为 CaseResult；
-- `1`：其他未分类异常。
-
-### HYSYS 启动策略
-
-统一 CLI 的 live run 不再依赖会在当前环境触发 CLR 崩溃的 COM `/Automation` 冷激活。
-当没有活动 HYSYS 对象时，连接管理器从 `HYSYS.Application` 注册信息定位可执行文件，按普通方式
-启动 HYSYS，最长等待60秒取得 `GetActiveObject`，再进入原有 Router 和适配器。执行结束后仅关闭
-由本次管理器启动的进程；如果运行前已经存在活动实例，则复用但不负责关闭。可通过环境变量
-`HYSYS_EXE_PATH` 显式覆盖可执行文件路径。
-
-`--dry-run` 在进入连接管理器之前返回，不导入 pywin32、不启动 HYSYS。
-
-连接管理器会在首次冷启动崩溃或 COM 注册超时时清理本次启动的 HYSYS 进程树，并自动重试一次。
-这用于处理 Aspen HYSYS V15 偶发的 `IFace.dll` 启动失败及遗留 `AspenSplash`；连续两次失败时，
-Web 界面会明确提示检查许可证弹窗、Windows 应用日志和残留启动进程，而不是只报告笼统超时。
-
-也可以直接运行单个适配器：
-
-甲苯默认50%转化率：
-
-```powershell
-& '..\.venv\Scripts\python.exe' '.\toluene\toluene_adapter.py'
-```
-
-甲苯40%或60%转化率：
-
-```powershell
-& '..\.venv\Scripts\python.exe' '.\toluene\toluene_adapter.py' --conversion 0.40
-& '..\.venv\Scripts\python.exe' '.\toluene\toluene_adapter.py' --conversion 0.60
-```
-
-甲烷重整600°C和710°C：
-
-```powershell
-& '..\.venv\Scripts\python.exe' '.\methane\methane_reforming_adapter.py' --outlet-temperature-c 600
-& '..\.venv\Scripts\python.exe' '.\methane\methane_reforming_adapter.py' --outlet-temperature-c 710
-```
-
-水煤浆气化默认工况：
-
-```powershell
-& '..\.venv\Scripts\python.exe' '.\coal\coal_gasification_adapter.py'
-```
-
-Python 调用示例：
-
-```python
-from methane.methane_reforming_adapter import run_methane_reforming_case
-
-result = run_methane_reforming_case(
-    total_feed_molar_flow_kgmole_h=100.0,
-    steam_to_carbon_ratio=2.7,
-    feed_temperature_c=520.0,
-    pressure_bar=13.5,
-    outlet_temperature_c=600.0,
-)
-```
-
-## 本地案例策略
-
-所有 `.hsc` 案例均保存在 `Sui/cases`，整个目录由 `.gitignore` 排除，不上传
-GitHub：
+## 示例问题
 
 ```text
-cases/constant/toluene_reactor_seed.hsc
-cases/constant/methane_reforming_seed.hsc
-cases/constant/coal_gasification_seed.hsc
-cases/runtime/...
+运行甲苯歧化：进料流量10000 kg/h，进料温度380°C，压力2.5 MPa，转化率50%。
 ```
 
-适配器每次将相应 seed 复制到 runtime 后运行，并在结束时重新校验 seed 的
-SHA-256。运行副本不会覆盖 seed。
+```text
+运行甲烷蒸汽重整：总进料100 kgmol/h，S/C 2.7，进料温度520°C，压力13.5 bar，出口温度710°C。
+```
 
-如果从全新的 Git clone 运行，需要从本地备份或发布包另行放入三个 seed；
-Git 仓库本身不包含 HYSYS 案例文件。
+```text
+运行水煤浆气化：水煤浆质量流量1000 kg/h，煤浆浓度62 wt%，进料温度40°C，压力40 bar，出口温度1400°C。
+```
 
-放入 seed 后执行只读完整性检查：
+完成一次仿真后，可以继续输入“改成600°C再算”或“为什么转化率提高”。修改工况会再次执行仿真；结果解释不会重复启动HYSYS。
+
+## CLI
+
+在`Sui`目录执行：
 
 ```powershell
-& '..\.venv\Scripts\python.exe' '.\verify_seeds.py' --pretty
+& '..\.venv\Scripts\python.exe' '.\run_case.py' --text '甲苯歧化，进料流量10000 kg/h，进料温度380°C，压力25 bar，转化率50%'
+& '..\.venv\Scripts\python.exe' '.\run_case.py' methane --outlet-temperature-c 710
+& '..\.venv\Scripts\python.exe' '.\run_case.py' coal --dry-run --output-format pretty
 ```
 
-校验器按照 [seed_manifest.json](seed_manifest.json) 报告每个文件为 `verified`、`missing` 或
-`hash_mismatch`，不会启动 HYSYS，也不会修改 seed。
+CLI退出码：`0`成功、`2`输入需澄清、`3`seed缺失、`4`HYSYS/COM或适配器失败、`5`结果标准化失败、`1`其他异常。
 
-真实验收建议使用证据采集器，避免 PowerShell 重定向改写原生 stderr，并自动记录前后
-seed 哈希和 HYSYS PID：
+## 校验与测试
 
 ```powershell
-& '..\.venv\Scripts\python.exe' '.\capture_cli_evidence.py' `
-  --evidence-dir '.\cases\runtime\acceptance_evidence' -- `
-  --text '<原题全文>' --output-format pretty
+# 验证三个seed
+& '..\.venv\Scripts\python.exe' -m tools.verify_seeds --pretty
+
+# 运行全部离线测试
+& '..\.venv\Scripts\python.exe' -m unittest discover -s tests -v
+
+# 采集一次CLI运行证据
+& '..\.venv\Scripts\python.exe' -m tools.capture_cli_evidence `
+  --evidence-dir '.\cases\runtime\acceptance' -- `
+  --text '甲苯歧化，转化率50%' --output-format pretty
 ```
 
-输出的 `stdout.json`、`stderr.log`、`exit_code.txt` 和 `metadata.json` 均保存在已被 Git
-忽略的 `cases/runtime` 下。
+## 工程边界
 
-## 成功与失败
-
-适配器只有在模型结构检查、输入写入、求解、结果读取、衡算、runtime 保存和
-案例关闭全部成功后，才输出相应的 `*_OK` 最终标志。任一关键步骤失败时以
-非零状态退出，不会继续宣称成功。
-
-## 验证记录
-
-- [甲苯场景验证记录](docs/toluene_validation.md)
-- [甲烷重整验证记录](docs/methane_reforming_validation.md)
-- [水煤浆气化验证记录](docs/coal_gasification_validation.md)
-- [统一 CaseSpec / CaseResult CLI 验证记录](docs/unified_cli_validation.md)
-- [自然语言 CLI 离线验证记录](docs/natural_language_cli.md)
-- [JSON CaseSpec 输入与离线验证](docs/json_case_spec.md)
-- [最终演示彩排方案与验收清单](docs/final_demo_rehearsal.md)
-
-## 当前边界
-
-- 二甲苯异构体选择性未由题目给出；当前 o/m/p 仅为显式假设推导，不是 HYSYS 原生组分结果；
-- 水煤浆气化已通过冷启动和连续3次重复性验证；1400°C Gibbs 外推结果仍需工程复核；
-- 统一 CLI 已完成三个场景的独立冷启动、UTF-8 JSON 和 stdout/stderr 分离验收；
-- 自然语言分类与参数提取已完成离线实现和三个场景实机验收；Toluene 原题全文的
-  `2.5 MPa` 输入也已通过换算为25 bar的真实验收；
-- 普通启动后连接活动 COM 对象的外层方案已通过 Toluene 实机验收；统一 CLI 内置连接管理器
-  也已通过 Toluene、Methane 与 Coal 的独立冷启动回归；
-- JSON CaseSpec 文件输入已完成离线实现和 Toluene live run 验收；
-- Methane 原题710/600°C ComparisonPlan 已完成逐工况独立冷启动的真实串行验收；
-- 最终演示的四命令连续彩排已经完成，原始 JSON、stderr、退出码和审计元数据保存在本地
-  `cases/runtime/final_demo/`；如正式展示需要 HYSYS 页面截图，应只读打开 runtime 副本并
-  明确区分“结果展示”和“无人触碰执行”。
+- 目前只执行三个固定场景，不会执行大模型生成的任意代码或COM操作。
+- 甲苯模型以HYSYS中的p-Xylene代表总二甲苯；邻/间/对分布是显式选择性假设，默认等比例，并非HYSYS原生预测。
+- 甲烷未给定实际工厂流量时采用100 kgmol/h归一化基准。
+- 水煤浆中的煤按纯碳近似，不含灰、硫、氮；原题`80000 Nm3/h`不能直接作为浆体质量流量。
+- 水煤浆1400°C超过当前组分报告的Gibbs数据上限426.85°C。数学收敛不代表结果已经获得工程热力学验证。
+- 正式演示前应先验证许可证、seed哈希及HYSYS正常启动，并关闭无关案例。

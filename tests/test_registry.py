@@ -19,7 +19,7 @@ class RegistryTests(unittest.TestCase):
         result = dispatch_native(spec, runners={Scenario.COAL: fake_runner})
         self.assertEqual(result, {"marker": "fake"})
         self.assertEqual(seen, [spec])
-        self.assertNotIn("coal.coal_gasification_adapter", sys.modules)
+        self.assertNotIn("adapters.coal.coal_gasification_adapter", sys.modules)
 
     def test_missing_registration_fails_explicitly(self) -> None:
         spec = CaseSpec(Scenario.COAL, CoalInputs())

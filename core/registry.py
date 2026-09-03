@@ -12,19 +12,19 @@ NativeRunner = Callable[[CaseSpec], dict[str, Any]]
 
 
 def run_toluene(spec: CaseSpec) -> dict[str, Any]:
-    from toluene.toluene_adapter import run_toluene_case
+    from adapters.toluene.toluene_adapter import run_toluene_case
 
     return run_toluene_case(**asdict(spec.inputs))
 
 
 def run_methane(spec: CaseSpec) -> dict[str, Any]:
-    from methane.methane_reforming_adapter import run_methane_reforming_case
+    from adapters.methane.methane_reforming_adapter import run_methane_reforming_case
 
     return run_methane_reforming_case(**asdict(spec.inputs))
 
 
 def run_coal(spec: CaseSpec) -> dict[str, Any]:
-    from coal.coal_gasification_adapter import run_coal_gasification_case
+    from adapters.coal.coal_gasification_adapter import run_coal_gasification_case
 
     return run_coal_gasification_case(**asdict(spec.inputs))
 

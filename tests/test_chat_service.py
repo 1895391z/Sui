@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from chat_service import (
+from app.chat_service import (
     ChatService,
     ChatServiceError,
     ModelConfig,

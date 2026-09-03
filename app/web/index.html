@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- Browser client for app.chat_app. -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HYSYS AI 仿真助手</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand-mark">H</div>
+      <div>
+        <h1>HYSYS AI 仿真助手</h1>
+        <p>Aspen HYSYS V15 · 自然语言驱动</p>
+      </div>
+      <div class="health"><span id="healthDot"></span><span id="healthText">正在连接</span></div>
+    </header>
+
+    <section id="chat" class="chat" aria-live="polite">
+      <article class="message assistant">
+        <div class="avatar">AI</div>
+        <div class="bubble">
+          <p>你好，我可以直接运行以下 HYSYS 仿真：</p>
+          <div class="chips">
+            <button data-prompt="运行甲苯歧化：进料流量 10000 kg/h，进料温度 380°C，压力 25 bar，转化率 50%。">甲苯歧化</button>
+            <button data-prompt="运行甲烷蒸汽重整：总进料摩尔流量 100 kgmol/h，S/C 2.7，进料温度 520°C，压力 13.5 bar，出口温度 710°C。">甲烷重整</button>
+            <button data-prompt="运行水煤浆气化：水煤浆质量流量 1000 kg/h，煤浆浓度 62 wt%，进料温度 40°C，压力 40 bar，出口温度 1400°C。">水煤浆气化</button>
+          </div>
+          <p class="hint">请写清数值和工程单位。真实运行会打开 HYSYS，完成后自动返回结果。</p>
+        </div>
+      </article>
+    </section>
+
+    <footer class="composer-wrap">
+      <form id="composer" class="composer">
+        <textarea id="input" rows="1" maxlength="12000" placeholder="描述你要仿真的工况…" autofocus></textarea>
+        <button id="send" class="send" type="submit" aria-label="发送">↑</button>
+      </form>
+      <div class="options">
+        <label class="switch-row">
+          <input id="dryRun" type="checkbox">
+          <span class="switch"></span>
+          仅校验参数，不启动 HYSYS
+        </label>
+        <span>Enter 发送 · Shift+Enter 换行</span>
+      </div>
+    </footer>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

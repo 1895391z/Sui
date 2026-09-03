@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from verify_seeds import verify_manifest
+from tools.verify_seeds import verify_manifest
 
 
 class SeedVerifierTests(unittest.TestCase):
