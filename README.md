@@ -3,6 +3,46 @@
 AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成三个固定场景的
 端到端 HYSYS 适配器：甲苯歧化、甲烷蒸汽重整和水煤浆蒸汽气化。
 
+## Web 对话界面
+
+项目提供本地浏览器对话界面。它复用统一 CLI 的参数校验、HYSYS 生命周期管理和结果标准化，
+不会执行大模型生成的代码。启动命令：
+
+```powershell
+Set-Location .\Sui
+.\start_chat.ps1
+```
+
+浏览器访问 `http://127.0.0.1:8765`。输入工况后默认执行真实 HYSYS 仿真；勾选“仅校验参数”
+可在不启动 HYSYS 的情况下检查场景、参数和单位。所有 live run 串行执行，避免多个 COM 会话竞争。
+
+不配置大模型时，界面仍可依靠本地确定性解析器完成仿真并生成结果摘要。若要使用国内大模型解读
+HYSYS 结果，将 `.env.example` 复制为 `.env`，填写 API Key、OpenAI-compatible Base URL 和模型名。
+密钥只保存在本机服务端，不会发送给浏览器。DeepSeek 示例：
+
+```dotenv
+HYSYS_LLM_API_KEY=你的密钥
+HYSYS_LLM_BASE_URL=https://api.deepseek.com
+HYSYS_LLM_MODEL=deepseek-v4-flash
+```
+
+也可接入提供 OpenAI-compatible `/chat/completions` 接口的其他服务，例如阿里云百炼：
+
+```dotenv
+HYSYS_LLM_API_KEY=你的百炼密钥
+HYSYS_LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+HYSYS_LLM_MODEL=qwen-plus
+```
+
+大模型负责依据标准 JSON 生成中文总结，并在多轮对话中区分“修改工况”和“解释结果”；工程单位
+检查、参数边界和 HYSYS 执行仍由本地受控代码负责。远程模型不可用时会自动降级为本地摘要，
+不影响已经完成的仿真。
+
+配置大模型后，浏览器页面还支持当前页面内的多轮追问。例如先运行710°C甲烷重整，再输入
+“改成600°C再算”，模型会把它整理成继承上一工况其余参数的完整请求，随后仍由本地解析器重新
+校验后才允许启动 HYSYS；输入“为什么转化率提高”则只解释上一轮 JSON，不会重复启动仿真。
+会话上下文只保存在当前服务进程内，重启服务后自动清除。
+
 [查看项目进度、已完成任务和后续规划](PROJECT_PROGRESS.md)
 
 ## 已完成场景

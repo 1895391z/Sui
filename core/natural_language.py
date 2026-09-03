@@ -222,16 +222,49 @@ def _extract_common(
         rf"(?:压力|pressure)\s*(?:为|是|=|:)?\s*(?P<value>{NUMBER})\s*"
         rf"(?P<unit>mpa|bar|巴)?",
     )
-    pressure = _one_value("压力", pressure_matches, questions)
+    pressure = None
+    if pressure_matches:
+        normalized_pressures = {
+            (
+                item.value * 10.0
+                if _unit_key(item.unit) == "mpa"
+                else item.value
+            )
+            for item in pressure_matches
+            if item.unit
+        }
+        if len(normalized_pressures) > 1:
+            questions.append("压力出现多个不等价数值，请只保留一个工况压力。")
+        else:
+            pressure = pressure_matches[0]
     pressure_value = _required_value(
         "压力", pressure, pressure_matches, questions, audit, "bar 或 MPa"
     )
     if pressure_value is not None and pressure is not None:
-        values["pressure_bar"] = (
+        pressure_bar = (
             pressure_value * 10.0
             if _unit_key(pressure.unit) == "mpa"
             else pressure_value
         )
+        values["pressure_bar"] = pressure_bar
+        # Models and users often write an equivalent explanation such as
+        # "2.5 MPa（即 25 bar）". Treat it as one pressure, not an ignored input.
+        all_pressure_values = _matches(
+            text,
+            rf"(?<![a-z0-9_.])(?P<value>{NUMBER})\s*"
+            rf"(?P<unit>mpa|bar|巴)",
+        )
+        equivalent = []
+        conflicting = []
+        for item in all_pressure_values:
+            normalized = item.value * 10.0 if _unit_key(item.unit) == "mpa" else item.value
+            if abs(normalized - pressure_bar) <= 1e-9:
+                equivalent.append(item)
+            else:
+                conflicting.append(item)
+        audit.consume(equivalent)
+        if conflicting:
+            questions.append("压力出现多个不等价数值，请明确只使用一个工况压力。")
 
     feed_matches = _matches(
         text,

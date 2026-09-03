@@ -44,6 +44,13 @@ class NaturalLanguageParserTests(unittest.TestCase):
         self.assertEqual(spec.inputs.pressure_bar, 25.0)
         self.assertEqual(spec.inputs.conversion, 0.50)
 
+    def test_equivalent_pressure_explanation_is_not_an_unknown_parameter(self) -> None:
+        spec = parse_text_request(
+            "甲苯歧化，进料流量10000 kg/h，进料温度380°C，"
+            "操作压力2.5 MPa（即25 bar），转化率50%"
+        )
+        self.assertEqual(spec.inputs.pressure_bar, 25.0)
+
     def test_assessment_methane_text_builds_sequential_comparison(self) -> None:
         plan = parse_text_request(METHANE_ASSESSMENT_TEXT)
         self.assertIsInstance(plan, ComparisonPlan)
