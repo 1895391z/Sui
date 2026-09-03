@@ -182,6 +182,18 @@ Git 仓库本身不包含 HYSYS 案例文件。
 校验器按照 [seed_manifest.json](seed_manifest.json) 报告每个文件为 `verified`、`missing` 或
 `hash_mismatch`，不会启动 HYSYS，也不会修改 seed。
 
+真实验收建议使用证据采集器，避免 PowerShell 重定向改写原生 stderr，并自动记录前后
+seed 哈希和 HYSYS PID：
+
+```powershell
+& '..\.venv\Scripts\python.exe' '.\capture_cli_evidence.py' `
+  --evidence-dir '.\cases\runtime\acceptance_evidence' -- `
+  --text '<原题全文>' --output-format pretty
+```
+
+输出的 `stdout.json`、`stderr.log`、`exit_code.txt` 和 `metadata.json` 均保存在已被 Git
+忽略的 `cases/runtime` 下。
+
 ## 成功与失败
 
 适配器只有在模型结构检查、输入写入、求解、结果读取、衡算、runtime 保存和
@@ -202,8 +214,10 @@ Git 仓库本身不包含 HYSYS 案例文件。
 - 二甲苯异构体选择性未由题目给出；当前 o/m/p 仅为显式假设推导，不是 HYSYS 原生组分结果；
 - 水煤浆气化已通过冷启动和连续3次重复性验证；1400°C Gibbs 外推结果仍需工程复核；
 - 统一 CLI 已完成三个场景的独立冷启动、UTF-8 JSON 和 stdout/stderr 分离验收；
-- 自然语言分类与参数提取已完成离线实现，尚待授权进行三场景实机验收；
+- 自然语言分类与参数提取已完成离线实现和三个场景实机验收；Toluene 原题全文的
+  `2.5 MPa` 输入也已通过换算为25 bar的真实验收；
 - 普通启动后连接活动 COM 对象的外层方案已通过 Toluene 实机验收；统一 CLI 内置连接管理器
   也已通过 Toluene、Methane 与 Coal 的独立冷启动回归；
 - JSON CaseSpec 文件输入已完成离线实现和 Toluene live run 验收；
+- Methane 原题710/600°C ComparisonPlan 已完成逐工况独立冷启动的真实串行验收；
 - Live Demo 前仍需完整彩排并保留终端与 HYSYS 结果截图。

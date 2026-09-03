@@ -36,7 +36,10 @@
 - 严格 JSON CaseSpec 文件输入已完成离线实现，复用现有契约并与其他输入源互斥。
 - JSON CaseSpec 已通过 Toluene dry-run 与 live run，确认复用同一执行链且 seed 不变。
 - 原题自然语言兼容层已离线支持 MPa 换算、CH4:H2O 比例、扩展温度/浓度措辞和未消费参数保护。
-- Methane 双出口温度可生成顺序 ComparisonPlan，并已离线实现逐工况独立会话执行和统一 ComparisonResult；尚未授权真实批量 live run。
+- Methane 双出口温度可生成顺序 ComparisonPlan，并已通过原题全文710/600°C逐工况独立会话
+  的真实执行与统一 ComparisonResult 验收。
+- 新增无 shell 的原始字节证据采集器；它固化 stdout/stderr、退出码、命令参数、前后 PID 和
+  seed 哈希，并已用于 Toluene 原题 `2.5 MPa` 实机验收。
 - 原题 Coal 的 80000 Nm3/h 会在启动 HYSYS 前明确澄清，不再由默认浆料流量掩盖。
 
 ## 当前边界
@@ -47,7 +50,8 @@
 - 自然语言入口目前采用确定性规则，三个场景均已完成实机运行验收；
 - 三场景默认工况、参数矩阵和 JSON live run 均已完成；最终演示彩排尚未完成；
 - 可选 LLM 解析尚未实现。
-- ComparisonPlan live 执行器与 ComparisonResult 已完成模拟会话回归，尚未进行真实 HYSYS 验收。
+- ComparisonPlan live 执行器与 ComparisonResult 已完成模拟会话回归和 Methane 原题真实
+  HYSYS 串行验收。
 
 ## 后续任务规划
 

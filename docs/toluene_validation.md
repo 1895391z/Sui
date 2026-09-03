@@ -62,6 +62,29 @@ HYSYS 根据数据库分子量进行了很小的质量配平修正。
 包含11个连接与适配器阶段标志；40%运行关闭 PID 4512，60%运行关闭 PID 8432，结束后无
 HYSYS 或 Python 残留进程。两次运行前后 seed SHA-256 均保持不变。
 
+## 原题全文 2.5 MPa 实机验收
+
+2026-09-03 从无 HYSYS 进程状态，把考核原题全文直接传入统一 CLI。解析得到的 CaseSpec
+将 `2.5 MPa` 换算为 `25.0 bar`，并保留 `10000 kg/h`、`380°C`、50%转化率和默认
+o/m/p 等比例假设。随后连接管理器正常启动 HYSYS PID 2940，第28次轮询取得活动 COM
+对象，只打开 runtime 副本并完成求解。
+
+- CLI 原始退出码和采证退出码均为0，`status=success`、`solver_converged=true`；
+- 未反应甲苯 `5000.0 kg/h`，苯 `2119.310886349257 kg/h`，总二甲苯
+  `2880.689113650743 kg/h`；
+- 推导的 o/m/p-Xylene 各为 `960.2297045502476 kg/h`，三项和在浮点精度内等于总二甲苯；
+- `derived_from_assumed_selectivity=true`，没有把推导分布误报成 HYSYS 原生组分；
+- 总出口 `10000.0 kg/h`，质量衡算误差0%；
+- stdout 为单一、可解析的 UTF-8 CaseResult JSON；stderr 是未经 PowerShell 包装的11行
+  连接与适配器日志，不含 `NativeCommandError`；
+- runtime 副本成功保存，管理器只关闭本次启动的 PID 2940，结束后无 HYSYS 残留进程；
+- seed 前后 SHA-256 均为
+  `6272C78215B3369CA62642C3E8C8DE383C13AFAEE3C4C9314572DA23F5141C21`。
+
+本地原始证据位于
+`cases/runtime/toluene_original_2_5mpa_acceptance/`，其中包含 `stdout.json`、
+`stderr.log`、`exit_code.txt` 和带前后 PID/seed 校验的 `metadata.json`。该目录由 Git 忽略。
+
 ## 种子完整性
 
 本地反应器种子（由 `/cases/` 规则排除，不提交 Git）：

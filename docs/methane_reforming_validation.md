@@ -81,6 +81,31 @@ RUN_METHANE_REFORMING_CASE_OK
 - 内置管理器关闭本次启动的 PID 8612，结束后无 HYSYS 或 Python 残留进程；
 - seed 运行前后 SHA-256 保持不变。
 
+## 原题全文 710/600°C 串行验收
+
+2026-09-03 从无 HYSYS 进程状态，将考核原题全文直接传给统一 CLI。解析器生成
+`execution_mode=sequential` 的 ComparisonPlan，并按原题温度顺序分别冷启动和关闭
+HYSYS；两个工况没有复用同一 HYSYS 会话。
+
+| 工况 | CH4转化率 | 热负荷 kW | 总质量误差 | C/H/O元素误差 |
+|---:|---:|---:|---:|---|
+| 710°C | 54.034754% | 1080.756873 | 0.0006053% | 7.55e-06% / 2.54e-06% / 1.39e-06% |
+| 600°C | 30.352330% | 544.851453 | 0.0003201% | 5.70e-05% / 2.36e-05% / 1.76e-06% |
+
+`ComparisonResult.status=success`、`all_solver_converged=true`。按“后一工况减前一工况”
+计算，600°C 相对710°C 的温度、转化率和热负荷差分别为 `-110°C`、
+`-23.682424` 个百分点和 `-535.905420 kW`，方向符合吸热重整反应的温度趋势。
+两个工况的出口气相摩尔分数和均为1。
+
+连接管理器依次启动并关闭 PID 4572 和8604；日志中各有两次
+`COMPARISON_CASE_START`、`COMPARISON_CASE_OK`、`SOLVED_OK` 和
+`RESULT_READ_OK`，结束后无 HYSYS 残留进程。seed 前后 SHA-256 均为
+`F1E3B482DF0B1E0F8525BD33932253B00A82428D11425559790FDADE82B47C72`。
+
+首次外层采证命令因 PowerShell 将原生程序 stderr 首行包装为 `NativeCommandError` 而中止；
+这不是 CLI 或 HYSYS 失败。后续增加 `capture_cli_evidence.py`，使用无 shell 的参数数组启动
+CLI，并以二进制文件句柄直接保存 stdout/stderr，避免命令解释器改写证据。
+
 ## 本地 seed
 
 ```text
