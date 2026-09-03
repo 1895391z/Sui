@@ -208,6 +208,7 @@ seed 哈希和 HYSYS PID：
 - [统一 CaseSpec / CaseResult CLI 验证记录](docs/unified_cli_validation.md)
 - [自然语言 CLI 离线验证记录](docs/natural_language_cli.md)
 - [JSON CaseSpec 输入与离线验证](docs/json_case_spec.md)
+- [最终演示彩排方案与验收清单](docs/final_demo_rehearsal.md)
 
 ## 当前边界
 
@@ -220,4 +221,6 @@ seed 哈希和 HYSYS PID：
   也已通过 Toluene、Methane 与 Coal 的独立冷启动回归；
 - JSON CaseSpec 文件输入已完成离线实现和 Toluene live run 验收；
 - Methane 原题710/600°C ComparisonPlan 已完成逐工况独立冷启动的真实串行验收；
-- Live Demo 前仍需完整彩排并保留终端与 HYSYS 结果截图。
+- 最终演示的四命令连续彩排已经完成，原始 JSON、stderr、退出码和审计元数据保存在本地
+  `cases/runtime/final_demo/`；如正式展示需要 HYSYS 页面截图，应只读打开 runtime 副本并
+  明确区分“结果展示”和“无人触碰执行”。

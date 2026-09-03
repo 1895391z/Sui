@@ -110,6 +110,48 @@ runtime 并关闭案例。
 均远超组件 Gibbs 数据上限，该组成响应只能作为当前模型的数学结果，不能解释为已经验证的煤气化
 物理趋势。
 
+## 原题单位澄清与修正后实机闭环
+
+2026-09-03 将考核原题全文直接传入统一 CLI。原题中的 `流量80000Nm3/h` 是标准气体
+体积流量，不能直接解释为水煤浆质量流量。CLI 在进入 HYSYS 连接管理器之前返回：
+
+- `status=clarification_required`；
+- 错误类型 `ClarificationRequired`，退出码2；
+- 问题明确要求提供水煤浆质量流量（kg/h）或体积到质量的换算基准；
+- stdout 是单一、合法的 UTF-8 JSON，stderr 为空；
+- 执行前后均无 HYSYS 进程，所有 runtime `.hsc`/`.bk*` 文件前后快照一致；
+- 三份 seed 前后校验通过。
+
+随后只把原题流量修正为“水煤浆质量流量1000 kg/h”，其余40 bar、62 wt%、40°C、
+1400°C、CO收率及副反应要求保持不变，执行真实 live run：
+
+| 检查项 | 结果 |
+|---|---:|
+| CLI / 采证退出码 | 0 / 0 |
+| Solver | 收敛 |
+| CO收率 | 40.862710% |
+| 碳转化率 | 61.294058% |
+| 热负荷 | 1487.580836 kW |
+| 总质量衡算误差 | 0.002214% |
+| C元素误差 | 约9.64e-14% |
+| H/O元素误差 | 均约1.26e-7% |
+
+连接管理器正常启动 PID 11240、取得活动 COM 对象、只打开 runtime 副本，并在结束时关闭
+该进程；前后均无 HYSYS 残留。stdout 为 CaseResult JSON，stderr 保留完整阶段日志和
+973.15°C Gibbs 数据外推警告，且没有 PowerShell `NativeCommandError` 包装。Coal seed
+前后 SHA-256 均为
+`F88D2CD59DA5156C8A2D324691C0AC7D6DBB7A4BD852604EEC3BDCD88D9448AB`。
+
+该结果继续标记 `engineering_validation_status=limited`。它完成的是输入安全、自动化、数学
+求解和衡算验收，不改变本记录关于高温组成缺乏独立工程验证的结论。
+
+本地证据目录为：
+
+```text
+cases/runtime/coal_original_nm3_clarification/
+cases/runtime/coal_original_corrected_1400_acceptance/
+```
+
 ## 本地 seed
 
 ```text
