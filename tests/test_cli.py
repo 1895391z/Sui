@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import run_case
-from core.errors import HysysConnectionError
+from core.errors import AdapterExecutionError, HysysConnectionError
 from tests.test_natural_language import (
     COAL_ASSESSMENT_TEXT,
     METHANE_ASSESSMENT_TEXT,
@@ -43,7 +43,7 @@ class CliDryRunTests(unittest.TestCase):
         payload = json.loads(completed.stdout)
         self.assertEqual(payload["case_spec"]["inputs"]["pressure_bar"], 25.0)
 
-    def test_assessment_methane_comparison_is_dry_run_only(self) -> None:
+    def test_assessment_methane_comparison_dry_run(self) -> None:
         completed = run_cli(
             "--text", METHANE_ASSESSMENT_TEXT, "--dry-run", "--output-format", "pretty"
         )
@@ -57,17 +57,67 @@ class CliDryRunTests(unittest.TestCase):
             [710.0, 600.0],
         )
 
+    def test_assessment_methane_live_routes_to_comparison_executor(self) -> None:
+        class FakeComparisonResult:
+            def to_dict(self) -> dict[str, object]:
+                return {
+                    "schema_version": "1.0",
+                    "status": "success",
+                    "scenario": "methane_steam_reforming",
+                    "execution_mode": "sequential",
+                    "case_results": [{}, {}],
+                }
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        def fake_comparison_executor(*_args, **_kwargs):
+            print("COMPARISON_CASE_START: index=1/2")
+            print("COMPARISON_CASE_OK: index=2/2")
+            return FakeComparisonResult()
+
         with (
-            patch.object(run_case, "execute_case") as execute,
-            patch.object(run_case, "managed_hysys") as manager,
+            patch.object(
+                run_case,
+                "execute_comparison_plan",
+                side_effect=fake_comparison_executor,
+            ) as execute_plan,
+            patch.object(run_case, "execute_case") as execute_case,
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
         ):
-            stdout = io.StringIO()
-            with redirect_stdout(stdout):
-                exit_code = run_case.main(["--text", METHANE_ASSESSMENT_TEXT])
-        self.assertEqual(exit_code, 2)
-        execute.assert_not_called()
-        manager.assert_not_called()
-        self.assertEqual(json.loads(stdout.getvalue())["status"], "failed")
+            exit_code = run_case.main(["--text", METHANE_ASSESSMENT_TEXT])
+        self.assertEqual(exit_code, 0)
+        execute_plan.assert_called_once()
+        execute_case.assert_not_called()
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["execution_mode"], "sequential")
+        self.assertNotIn("COMPARISON_CASE", stdout.getvalue())
+        self.assertIn("COMPARISON_CASE_START", stderr.getvalue())
+        self.assertIn("COMPARISON_CASE_OK", stderr.getvalue())
+
+    def test_comparison_case_failure_never_emits_success_result(self) -> None:
+        def fail_second_case(*_args, **_kwargs):
+            print("COMPARISON_CASE_FAILED: index=2/2")
+            raise AdapterExecutionError("second comparison case failed")
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch.object(
+                run_case,
+                "execute_comparison_plan",
+                side_effect=fail_second_case,
+            ),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            exit_code = run_case.main(["--text", METHANE_ASSESSMENT_TEXT])
+        self.assertEqual(exit_code, 4)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["status"], "failed")
+        self.assertNotIn("case_results", payload)
+        self.assertIn("COMPARISON_CASE_FAILED", stderr.getvalue())
 
     def test_assessment_coal_clarification_never_starts_hysys(self) -> None:
         with (

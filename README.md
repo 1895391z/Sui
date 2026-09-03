@@ -71,8 +71,8 @@ AI 驱动的 Aspen HYSYS V15 反应器建模考核项目。当前已完成三个
 未明确写出的参数采用场景默认值；已经写出但缺少单位、数值冲突或同时出现多个场景时，CLI
 返回 `clarification_required` 和具体问题，退出码为2，并且不会进入 Router 或启动 HYSYS。
 压力输入支持 `bar` 和 `MPa`，其中 MPa 会统一换算为 bar。原题式 Methane 双出口温度请求在
-`--dry-run` 下返回 `execution_mode=sequential` 的 `ComparisonPlan`；该计划目前不能 live run，
-必须先审阅其中的两个 CaseSpec。`Nm3/h`/`Nm³/h` 不能直接作为水煤浆质量流量，CLI 会要求
+`--dry-run` 下返回 `execution_mode=sequential` 的 `ComparisonPlan`；live run 按计划逐个工况
+独立启动和关闭 HYSYS，并返回统一 `ComparisonResult`。`Nm3/h`/`Nm³/h` 不能直接作为水煤浆质量流量，CLI 会要求
 提供 kg/h 或换算基准，绝不会静默使用默认流量。带工程单位但未被消费的显式数值同样要求澄清。
 
 从严格 UTF-8 JSON 文件读取完整 CaseSpec：

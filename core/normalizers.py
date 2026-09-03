@@ -10,6 +10,8 @@ from .models import (
     BalanceResult,
     CaseResult,
     CaseSpec,
+    ComparisonPlan,
+    ComparisonResult,
     EngineeringValidationStatus,
     ReactorResult,
     Scenario,
@@ -173,3 +175,125 @@ def normalize_result(spec: CaseSpec, raw: dict[str, Any]) -> CaseResult:
             f"No result normalizer for scenario {spec.scenario.value!r}"
         ) from exc
     return normalizer(spec, raw)
+
+
+def _finite_result_mapping(value: Any, label: str) -> dict[str, float]:
+    if not isinstance(value, dict) or not value:
+        raise RuntimeError(f"{label} must be a non-empty dictionary")
+    result: dict[str, float] = {}
+    for key, raw_number in value.items():
+        if isinstance(raw_number, bool) or not isinstance(raw_number, (int, float)):
+            raise RuntimeError(f"{label}.{key} must be numeric")
+        number = float(raw_number)
+        if not math.isfinite(number) or number < -1e-8:
+            raise RuntimeError(f"{label}.{key} must be finite and non-negative")
+        result[str(key)] = max(number, 0.0)
+    return result
+
+
+def _methane_case_summary(index: int, result: CaseResult) -> dict[str, Any]:
+    component_flows = _finite_result_mapping(
+        result.aggregates.get("combined_component_molar_flow_kgmole_h"),
+        "combined_component_molar_flow_kgmole_h",
+    )
+    total_flow = sum(component_flows.values())
+    if total_flow <= 0.0:
+        raise RuntimeError("Combined product molar flow must be greater than zero")
+    component_fractions = {
+        component: flow / total_flow for component, flow in component_flows.items()
+    }
+    temperature = result.conditions.get("outlet_temperature_c")
+    conversion = result.metrics.get("methane_conversion_percent")
+    duty = result.metrics.get("heat_duty_kw")
+    for label, value in (
+        ("outlet_temperature_c", temperature),
+        ("methane_conversion_percent", conversion),
+        ("heat_duty_kw", duty),
+    ):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise RuntimeError(f"Comparison result {label} must be numeric")
+        if not math.isfinite(float(value)):
+            raise RuntimeError(f"Comparison result {label} must be finite")
+    return {
+        "case_index": index,
+        "outlet_temperature_c": float(temperature),
+        "methane_conversion_percent": float(conversion),
+        "heat_duty_kw": float(duty),
+        "product_component_molar_flow_kgmole_h": component_flows,
+        "product_component_molar_fraction": component_fractions,
+        "mass_balance_error_percent": result.balances.mass_error_percent,
+        "element_balance_error_percent": dict(result.balances.element_error_percent),
+    }
+
+
+def normalize_comparison_result(
+    plan: ComparisonPlan,
+    case_results: tuple[CaseResult, ...],
+) -> ComparisonResult:
+    if len(case_results) != len(plan.case_specs):
+        raise RuntimeError("Comparison results do not match the planned case count")
+    summaries = tuple(
+        _methane_case_summary(index, result)
+        for index, result in enumerate(case_results)
+    )
+    for spec, summary in zip(plan.case_specs, summaries, strict=True):
+        planned = float(getattr(spec.inputs, plan.comparison_field))
+        if not math.isclose(
+            summary["outlet_temperature_c"], planned, rel_tol=0.0, abs_tol=0.05
+        ):
+            raise RuntimeError(
+                "Comparison result temperature does not match the planned CaseSpec"
+            )
+
+    adjacent_deltas: list[dict[str, Any]] = []
+    for current, following in zip(summaries, summaries[1:], strict=False):
+        current_fractions = current["product_component_molar_fraction"]
+        following_fractions = following["product_component_molar_fraction"]
+        if set(current_fractions) != set(following_fractions):
+            raise RuntimeError("Comparison product component sets do not match")
+        current_flows = current["product_component_molar_flow_kgmole_h"]
+        following_flows = following["product_component_molar_flow_kgmole_h"]
+        adjacent_deltas.append(
+            {
+                "from_case_index": current["case_index"],
+                "to_case_index": following["case_index"],
+                "from_comparison_value": current["outlet_temperature_c"],
+                "to_comparison_value": following["outlet_temperature_c"],
+                "outlet_temperature_delta_c": (
+                    following["outlet_temperature_c"]
+                    - current["outlet_temperature_c"]
+                ),
+                "methane_conversion_delta_percentage_points": (
+                    following["methane_conversion_percent"]
+                    - current["methane_conversion_percent"]
+                ),
+                "heat_duty_delta_kw": (
+                    following["heat_duty_kw"] - current["heat_duty_kw"]
+                ),
+                "product_component_molar_flow_delta_kgmole_h": {
+                    component: following_flows[component] - current_flows[component]
+                    for component in current_flows
+                },
+                "product_component_molar_fraction_delta": {
+                    component: (
+                        following_fractions[component] - current_fractions[component]
+                    )
+                    for component in current_fractions
+                },
+            }
+        )
+
+    warnings = tuple(
+        dict.fromkeys(
+            warning for result in case_results for warning in result.warnings
+        )
+    )
+    return ComparisonResult(
+        scenario=plan.scenario,
+        comparison_field=plan.comparison_field,
+        case_results=case_results,
+        case_summaries=summaries,
+        adjacent_deltas=tuple(adjacent_deltas),
+        assumptions=plan.assumptions,
+        warnings=warnings,
+    )

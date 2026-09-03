@@ -26,7 +26,7 @@ from core.models import (
     TolueneInputs,
     XyleneSplit,
 )
-from core.service import execute_case
+from core.service import execute_case, execute_comparison_plan
 from core.natural_language import ClarificationRequired, parse_text_request
 
 
@@ -280,18 +280,18 @@ def main(argv: list[str] | None = None) -> int:
             )
             return EXIT_OK
 
-        if isinstance(request, ComparisonPlan):
-            raise CliInputError(
-                "ComparisonPlan currently supports --dry-run only; "
-                "review the sequential cases before live execution"
-            )
-        spec = request
-
         adapter_output = io.StringIO()
         try:
             with redirect_stdout(adapter_output):
-                with managed_hysys():
-                    result = execute_case(spec)
+                if isinstance(request, ComparisonPlan):
+                    result = execute_comparison_plan(
+                        request,
+                        session_factory=managed_hysys,
+                        case_executor=execute_case,
+                    )
+                else:
+                    with managed_hysys():
+                        result = execute_case(request)
         finally:
             logs = adapter_output.getvalue()
             if logs:

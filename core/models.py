@@ -313,3 +313,59 @@ class CaseResult:
             self.engineering_validation_status.value
         )
         return result
+
+
+@dataclass(frozen=True)
+class ComparisonResult:
+    """Successful results and deltas from a sequential ComparisonPlan."""
+
+    scenario: Scenario
+    comparison_field: str
+    case_results: tuple[CaseResult, ...]
+    case_summaries: tuple[dict[str, Any], ...]
+    adjacent_deltas: tuple[dict[str, Any], ...]
+    assumptions: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+    execution_mode: str = "sequential"
+    status: str = "success"
+    schema_version: str = SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema_version != SCHEMA_VERSION:
+            raise ValueError(
+                f"Unsupported ComparisonResult schema_version={self.schema_version!r}; "
+                f"expected={SCHEMA_VERSION!r}"
+            )
+        if self.status != "success":
+            raise ValueError("ComparisonResult status must be 'success'")
+        if self.execution_mode != "sequential":
+            raise ValueError("ComparisonResult execution_mode must be 'sequential'")
+        if len(self.case_results) < 2:
+            raise ValueError("ComparisonResult requires at least two CaseResults")
+        if len(self.case_summaries) != len(self.case_results):
+            raise ValueError("ComparisonResult summaries must match CaseResults")
+        if len(self.adjacent_deltas) != len(self.case_results) - 1:
+            raise ValueError("ComparisonResult requires one delta per adjacent pair")
+        if not all(isinstance(result, CaseResult) for result in self.case_results):
+            raise TypeError("ComparisonResult case_results must contain CaseResults")
+        if any(result.scenario is not self.scenario for result in self.case_results):
+            raise ValueError("Every ComparisonResult case must match its scenario")
+        if not all(result.solver_converged for result in self.case_results):
+            raise ValueError("Every ComparisonResult case must be converged")
+        if not all(isinstance(item, str) for item in (*self.assumptions, *self.warnings)):
+            raise TypeError("ComparisonResult assumptions and warnings must be strings")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "status": self.status,
+            "scenario": self.scenario.value,
+            "execution_mode": self.execution_mode,
+            "comparison_field": self.comparison_field,
+            "all_solver_converged": True,
+            "case_results": [result.to_dict() for result in self.case_results],
+            "case_summaries": list(self.case_summaries),
+            "adjacent_deltas": list(self.adjacent_deltas),
+            "assumptions": list(self.assumptions),
+            "warnings": list(self.warnings),
+        }

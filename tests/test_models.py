@@ -6,7 +6,12 @@ from core.models import (
     CaseSpec,
     CoalInputs,
     ComparisonPlan,
+    ComparisonResult,
+    BalanceResult,
+    CaseResult,
+    EngineeringValidationStatus,
     MethaneInputs,
+    ReactorResult,
     Scenario,
     TolueneInputs,
     XyleneSplit,
@@ -14,6 +19,30 @@ from core.models import (
 
 
 class CaseSpecTests(unittest.TestCase):
+    def test_comparison_result_serializes_nested_case_results(self) -> None:
+        case_result = CaseResult(
+            scenario=Scenario.METHANE,
+            reactor=ReactorResult("Equilibrium Reactor", "ERV-100", "test"),
+            conditions={"outlet_temperature_c": 710.0},
+            metrics={"methane_conversion_percent": 54.0, "heat_duty_kw": 1080.0},
+            streams={"feed": {}, "products": {}},
+            aggregates={},
+            balances=BalanceResult(0.0, {"C": 0.0, "H": 0.0, "O": 0.0}),
+            solver_converged=True,
+            engineering_validation_status=EngineeringValidationStatus.NOT_ASSESSED,
+        )
+        result = ComparisonResult(
+            scenario=Scenario.METHANE,
+            comparison_field="outlet_temperature_c",
+            case_results=(case_result, case_result),
+            case_summaries=({"case_index": 0}, {"case_index": 1}),
+            adjacent_deltas=({"from_case_index": 0, "to_case_index": 1},),
+        )
+        payload = result.to_dict()
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["execution_mode"], "sequential")
+        self.assertEqual(payload["case_results"][0]["scenario"], Scenario.METHANE)
+
     def test_methane_comparison_plan_is_sequential_and_serializable(self) -> None:
         plan = ComparisonPlan(
             scenario=Scenario.METHANE,
